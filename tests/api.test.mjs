@@ -9,12 +9,13 @@ import { rmSync } from 'node:fs';
 import { createApp } from '../server/app.mjs';
 import { seedIfEmpty } from '../server/seed.mjs';
 
-let server, base, app, dbPath;
+let server, base, app, dbPath, boot;
 
 before(async () => {
   dbPath = join(tmpdir(), `lilith-test-${process.pid}-${Date.now()}.db`);
   app = createApp({ dbPath, limits: { report: { capacity: 1000, refillPerMinute: 6000 }, lookup: { capacity: 1000, refillPerMinute: 6000 }, action: { capacity: 1000, refillPerMinute: 6000 } } });
   seedIfEmpty(app.store);
+  boot = app.store.ensureBootstrapModerator('test-mod-key-abcdefghij');
   server = createServer(app);
   await new Promise(r => server.listen(0, '127.0.0.1', r));
   base = `http://127.0.0.1:${server.address().port}`;
@@ -154,6 +155,72 @@ test('report posting is rate limited (429 after burst)', async () => {
   assert.equal((await post()).status, 429);
   rlServer.close(); rlApp.close();
   for (const suffix of ['', '-wal', '-shm']) { try { rmSync(dp + suffix); } catch {} }
+});
+
+async function modToken() {
+  const res = await api('/api/mod/login', { method: 'POST', body: { key: 'test-mod-key-abcdefghij' } });
+  assert.equal(res.status, 200);
+  return (await res.json()).token;
+}
+const authed = (path, opts = {}, token) => api(path, { ...opts, headers: { authorization: `Bearer ${token}`, ...(opts.headers || {}) } });
+
+test('moderator bootstrap issued a one-time key', () => {
+  assert.equal(boot.created, true);
+});
+
+test('mod endpoints reject missing or bad tokens', async () => {
+  assert.equal((await api('/api/mod/queue')).status, 401);
+  assert.equal((await api('/api/mod/queue', { headers: { authorization: 'Bearer nope' } })).status, 401);
+  assert.equal((await api('/api/mod/login', { method: 'POST', body: { key: 'wrong' } })).status, 401);
+});
+
+test('high-risk report enters the queue and a moderator can approve it', async () => {
+  const token = await modToken();
+  const { report } = await (await api('/api/reports', { method: 'POST', body: validReport({ risk: 'high', title: 'Queue approve target' }) })).json();
+  assert.equal(report.state, 'review-pending');
+  const q1 = await (await authed('/api/mod/queue', {}, token)).json();
+  assert.ok(q1.queue.some(i => i.report.id === report.id));
+  // moderator sees the decrypted narrative + open requests
+  const item = q1.queue.find(i => i.report.id === report.id);
+  assert.match(item.report.details, /renegotiated/);
+  const res = await authed(`/api/mod/reports/${report.id}/resolve`, { method: 'POST', body: { action: 'approve', note: 'ok' } }, token);
+  assert.equal(res.status, 200);
+  assert.equal((await res.json()).report.state, 'reviewed');
+  const q2 = await (await authed('/api/mod/queue', {}, token)).json();
+  assert.ok(!q2.queue.some(i => i.report.id === report.id));
+});
+
+test('emergency-unpublish enters the queue; moderator remove keeps it hidden, restore republishes', async () => {
+  const token = await modToken();
+  const { report } = await (await api('/api/reports', { method: 'POST', body: validReport() })).json();
+  await api(`/api/reports/${report.id}/actions`, { method: 'POST', body: { type: 'emergency-unpublish', reason: 'risk' } });
+  assert.equal((await api(`/api/reports/${report.id}`)).status, 404); // hidden from public
+  const q = await (await authed('/api/mod/queue', {}, token)).json();
+  assert.ok(q.queue.some(i => i.report.id === report.id && !i.report.published));
+  // remove keeps it gone
+  await authed(`/api/mod/reports/${report.id}/resolve`, { method: 'POST', body: { action: 'remove' } }, token);
+  assert.equal((await api(`/api/reports/${report.id}`)).status, 404);
+  // restore republishes
+  await authed(`/api/mod/reports/${report.id}/resolve`, { method: 'POST', body: { action: 'restore' } }, token);
+  assert.equal((await api(`/api/reports/${report.id}`)).status, 200);
+});
+
+test('resolving marks open lifecycle actions resolved and clears the queue item', async () => {
+  const token = await modToken();
+  const { report } = await (await api('/api/reports', { method: 'POST', body: validReport() })).json();
+  await api(`/api/reports/${report.id}/actions`, { method: 'POST', body: { type: 'contest', reason: 'disputed facts' } });
+  await authed(`/api/mod/reports/${report.id}/resolve`, { method: 'POST', body: { action: 'dismiss', note: 'unfounded' } }, token);
+  const detail = await (await api(`/api/reports/${report.id}`)).json();
+  assert.equal(detail.report.state, 'reviewed');
+  assert.ok(detail.actions.every(a => a.status !== 'pending'));
+});
+
+test('public report detail never leaks lifecycle reasons', async () => {
+  const { report } = await (await api('/api/reports', { method: 'POST', body: validReport() })).json();
+  await api(`/api/reports/${report.id}/actions`, { method: 'POST', body: { type: 'correction', reason: 'SECRET-REASON-TEXT' } });
+  const detail = await (await api(`/api/reports/${report.id}`)).json();
+  assert.ok(detail.actions.length >= 1);
+  assert.ok(detail.actions.every(a => !('reason' in a)), 'reasons must not be exposed publicly');
 });
 
 test('static index is served with CSP', async () => {

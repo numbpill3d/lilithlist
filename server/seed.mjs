@@ -1,5 +1,7 @@
 'use strict';
 
+import { encryptField } from './crypto.mjs';
+
 // Fictional demo bulletins, inserted only when the reports table is empty so a
 // fresh node has something to browse. These carry no receipt (not owner-editable)
 // and are clearly marked as seed data.
@@ -27,7 +29,7 @@ export function seedIfEmpty(store) {
     const created = new Date(now - s.ageHours * 3600000);
     const expires = new Date(created.getTime() + 90 * DAY);
     const norm = String(s.identifier || '').toLowerCase().replace(/[^a-z0-9]/g, '');
-    insert.run(`LL-${1000 + n}`, s.risk, s.region, s.idType, s.identifier, norm, s.title, s.details,
+    insert.run(`LL-${1000 + n}`, s.risk, s.region, s.idType, s.identifier, norm, s.title, encryptField(s.details),
       s.date, s.context, JSON.stringify(s.tags), s.corroborations, s.state,
       created.toISOString(), expires.toISOString());
     n++;

@@ -72,6 +72,12 @@ function clientKey(req, secret, scope = '') {
   return createHash('sha256').update(ip + '|' + scope + '|' + secret).digest('hex');
 }
 
+function bearer(req) {
+  const h = req.headers['authorization'] || '';
+  const m = /^Bearer\s+(.+)$/i.exec(h);
+  return m ? m[1].trim() : '';
+}
+
 const DEFAULT_LIMITS = {
   report: { capacity: 5, refillPerMinute: 5 },
   lookup: { capacity: 5, refillPerMinute: 5 },
@@ -201,6 +207,41 @@ export function createApp({ dbPath = 'data/lilithlist.db', limits = {} } = {}) {
         if (!result.ok && result.code === 403) return send(res, 403, { error: 'Receipt did not match. Only the reporter can revoke this bulletin.' });
         return send(res, 200, { ok: true });
       }
+    }
+
+    // ── Moderation (bearer-authenticated) ──────────────────────────────────
+    if (path === '/api/mod/login' && method === 'POST') {
+      if (!limiters.action.take(clientKey(req, secret, 'modlogin')).allowed) {
+        return send(res, 429, { error: 'Too many login attempts. Slow down.' });
+      }
+      const body = await readJson(req);
+      const session = store.login(String(body.key || ''));
+      if (!session) return send(res, 401, { error: 'Invalid moderator key.' });
+      return send(res, 200, session);
+    }
+
+    if (path.startsWith('/api/mod/')) {
+      const mod = store.moderatorForToken(bearer(req));
+      if (!mod) return send(res, 401, { error: 'Moderator authentication required.' });
+
+      if (path === '/api/mod/session' && method === 'GET') return send(res, 200, { label: mod.label });
+      if (path === '/api/mod/logout' && method === 'POST') { store.logout(bearer(req)); return send(res, 200, { ok: true }); }
+      if (path === '/api/mod/queue' && method === 'GET') return send(res, 200, { queue: store.queue(), stats: store.stats() });
+
+      const resolveMatch = path.match(/^\/api\/mod\/reports\/([A-Za-z0-9-]+)\/resolve$/);
+      if (resolveMatch && method === 'POST') {
+        const body = await readJson(req);
+        const action = String(body.action || '');
+        if (!['approve', 'remove', 'restore', 'dismiss'].includes(action)) {
+          return send(res, 400, { error: 'Unknown resolution action.' });
+        }
+        const note = String(body.note || '').slice(0, 500);
+        const result = store.resolve(resolveMatch[1], { action, note, moderatorLabel: mod.label });
+        if (!result.ok) return send(res, result.code === 404 ? 404 : 400, { error: 'Could not resolve that bulletin.' });
+        return send(res, 200, { report: result.report });
+      }
+
+      return send(res, 404, { error: 'Unknown moderator endpoint.' });
     }
 
     return send(res, 404, { error: 'Unknown endpoint.' });

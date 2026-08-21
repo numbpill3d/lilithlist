@@ -35,7 +35,7 @@ function waitForHealth(timeoutMs = 8000) {
 test.before(async () => {
   server = spawn(process.execPath, ['server/server.mjs'], {
     cwd: ROOT,
-    env: { ...process.env, PORT: String(PORT), HOST: '127.0.0.1', LILITH_DB: DB_PATH },
+    env: { ...process.env, PORT: String(PORT), HOST: '127.0.0.1', LILITH_DB: DB_PATH, MOD_BOOTSTRAP_KEY: 'e2e-moderator-key-000000' },
     stdio: 'ignore'
   });
   await waitForHealth();
@@ -166,6 +166,21 @@ test('lookup finds a seeded partial marker', async () => {
   await page.getByRole('button', { name: /search node/i }).click();
   await page.locator('#lookupList [data-thread]').first().waitFor();
   assert.ok(await page.locator('#lookupList [data-thread]').count() >= 1);
+  await context.close();
+});
+
+test('a moderator can sign in and clear the review queue', async () => {
+  const { page, context } = await freshPage();
+  await page.getByRole('button', { name: 'moderation' }).click();
+  await page.fill('#modKey', 'e2e-moderator-key-000000');
+  await page.getByRole('button', { name: /sign in/i }).click();
+  // the seeded high-risk report is review-pending → appears in the queue
+  await page.locator('.mod-card').first().waitFor();
+  assert.ok(await page.locator('.mod-card').count() >= 1);
+  await page.locator('.mod-card').first().getByRole('button', { name: /approve/i }).click();
+  await page.waitForTimeout(500);
+  // after approving, the queue shrinks (eventually clears the seeded item)
+  await assert.doesNotReject(() => page.getByText(/in queue/i).waitFor());
   await context.close();
 });
 

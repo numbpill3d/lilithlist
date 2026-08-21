@@ -26,7 +26,8 @@
     return node;
   };
 
-  const state = { board: { items: [], total: 0, page: 1, pages: 1 }, lookups: 0, pendingDraft: null, focusStack: [], receipts: {} };
+  const MOD_KEY = 'lilithlist.mod.v1';
+  const state = { board: { items: [], total: 0, page: 1, pages: 1 }, lookups: 0, pendingDraft: null, focusStack: [], receipts: {}, modToken: null, modLabel: null };
   const refs = {
     boardList: $('#boardList'), lookupList: $('#lookupList'), resultCount: $('#resultCount'), lookupCount: $('#lookupCount'),
     boardQuery: $('#boardQuery'), regionFilter: $('#regionFilter'), riskFilter: $('#riskFilter'), sortFilter: $('#sortFilter'),
@@ -57,9 +58,10 @@
 
   // ── API ───────────────────────────────────────────────────────────────────
   async function api(path, options = {}) {
+    const headers = { ...(options.body ? { 'content-type': 'application/json' } : {}), ...(options.headers || {}) };
     const res = await fetch(path, {
-      headers: options.body ? { 'content-type': 'application/json' } : {},
       ...options,
+      headers,
       body: options.body ? JSON.stringify(options.body) : undefined
     });
     let data = null;
@@ -142,7 +144,7 @@
   function currentRoute() {
     const hash = location.hash.slice(1);
     if (hash.startsWith('guide-')) return { route: 'guide', section: hash };
-    return { route: ['board', 'search', 'report', 'guide'].includes(hash) ? hash : 'board', section: null };
+    return { route: ['board', 'search', 'report', 'guide', 'moderate'].includes(hash) ? hash : 'board', section: null };
   }
   function showRoute(route, section = null, options = {}) {
     $$('[data-view]').forEach(view => { view.hidden = view.dataset.view !== route; });
@@ -154,6 +156,7 @@
     }
     const heading = $(`[data-view="${route}"] h2`);
     refs.routeAnnouncement.textContent = `${heading ? heading.textContent : route} view loaded`;
+    if (route === 'moderate') enterModeration();
     requestAnimationFrame(() => {
       const target = section ? document.getElementById(section) : heading;
       if (target) { target.focus({ preventScroll: true }); target.scrollIntoView({ block: 'start' }); }
@@ -385,6 +388,78 @@
     showToast('Local receipts cleared from this browser. Published bulletins are unaffected — revoke each one individually to remove it from the node.');
   }
 
+  // ── Moderation ────────────────────────────────────────────────────────────
+  function loadMod() {
+    try { const m = JSON.parse(localStorage.getItem(MOD_KEY) || 'null'); if (m && m.token) { state.modToken = m.token; state.modLabel = m.label || 'moderator'; } }
+    catch { state.modToken = null; }
+  }
+  function saveMod() {
+    try { if (state.modToken) localStorage.setItem(MOD_KEY, JSON.stringify({ token: state.modToken, label: state.modLabel })); else localStorage.removeItem(MOD_KEY); } catch {}
+  }
+  function modAuth() { return { authorization: `Bearer ${state.modToken}` }; }
+  function setModAuthedView(authed) {
+    $('#modLoggedOut').hidden = authed;
+    $('#modLoggedIn').hidden = !authed;
+  }
+  async function enterModeration() {
+    if (!state.modToken) { setModAuthedView(false); $('#modLoginError').textContent = ''; return; }
+    try {
+      const s = await api('/api/mod/session', { headers: modAuth() });
+      state.modLabel = s.label; $('#modLabel').textContent = s.label;
+      setModAuthedView(true); renderModQueue();
+    } catch (err) {
+      if (err.status === 401) { state.modToken = null; saveMod(); }
+      setModAuthedView(false);
+    }
+  }
+  async function renderModQueue() {
+    const container = $('#modQueue');
+    container.replaceChildren(el('p', { className: 'empty-state', text: 'Loading queue…' }));
+    let data;
+    try { data = await api('/api/mod/queue', { headers: modAuth() }); }
+    catch (err) { if (err.status === 401) { state.modToken = null; saveMod(); setModAuthedView(false); } else container.replaceChildren(el('p', { className: 'empty-state', text: err.message })); return; }
+    $('#modStats').textContent = `${data.stats.queue} in queue · ${data.stats.total} published`;
+    container.replaceChildren();
+    if (!data.queue.length) { container.append(el('p', { className: 'empty-state', text: 'Queue is clear. No bulletins need review.' })); return; }
+    data.queue.forEach(item => container.append(modCard(item)));
+  }
+  function modCard({ report, actions }) {
+    const head = el('div', { className: 'mod-card__head' }, [
+      el('span', { className: `risk risk--${report.risk}`, text: RISK_LABELS[report.risk] }),
+      el('strong', { text: report.title }),
+      el('b', { className: `state state--${report.state}`, text: stateLabel(report.state) }),
+      el('span', { className: 'mod-card__id', text: `${report.id} · ${report.published ? 'visible' : 'hidden'}` })
+    ]);
+    const meta = el('p', { className: 'mod-card__meta', text: `${report.region} · ${report.context} · ${report.identifier || 'conduct-only'} · ${report.corroborations} corroborations · expires ${formatDate(report.expiresAt)}` });
+    const body = el('div', { className: 'mod-card__body', text: report.details });
+    const card = el('article', { className: 'mod-card' }, [head, meta, body]);
+    if (actions.length) {
+      const req = el('div', { className: 'mod-card__requests' }, [el('h4', { text: 'open requests' })]);
+      actions.forEach(a => req.append(el('div', { className: 'mod-request' }, [el('b', { text: stateLabel(a.type) }), el('span', { text: a.reason })])));
+      card.append(req);
+    }
+    const note = el('input', { type: 'text', className: 'mod-note', maxlength: '500', placeholder: 'resolution note (optional, stored encrypted)' });
+    const controls = el('div', { className: 'mod-card__controls' });
+    const mk = (label, action, cls) => {
+      const b = el('button', { className: `button ${cls}`, type: 'button', text: label });
+      b.addEventListener('click', () => resolveItem(report.id, action, note.value));
+      return b;
+    };
+    controls.append(mk('approve / publish', 'approve', 'button--primary'));
+    if (report.published) controls.append(mk('remove', 'remove', 'button--danger'));
+    else controls.append(mk('restore', 'restore', 'button--quiet'));
+    controls.append(mk('dismiss request', 'dismiss', 'button--quiet'));
+    card.append(el('div', { className: 'mod-card__resolve' }, [note, controls]));
+    return card;
+  }
+  async function resolveItem(id, action, note) {
+    try {
+      await api(`/api/mod/reports/${encodeURIComponent(id)}/resolve`, { method: 'POST', headers: modAuth(), body: { action, note } });
+      showToast(`Bulletin ${id} resolved: ${action}.`);
+      renderModQueue(); renderBoard();
+    } catch (err) { if (err.status === 401) { state.modToken = null; saveMod(); setModAuthedView(false); } showToast(err.message); }
+  }
+
   let toastTimer;
   function showToast(message) { clearTimeout(toastTimer); refs.toastText.textContent = message; refs.toast.hidden = false; toastTimer = setTimeout(() => refs.toast.hidden = true, 7000); }
 
@@ -428,7 +503,24 @@
   $('[data-action="erase-exit"]').addEventListener('click', () => confirmAction('Clear all local receipts and immediately replace this page with a blank screen?', () => eraseLocal(true)));
   refs.toast.querySelector('button').addEventListener('click', () => refs.toast.hidden = true);
 
+  $('#modLoginForm').addEventListener('submit', async event => {
+    event.preventDefault();
+    const key = $('#modKey').value.trim();
+    if (!key) return;
+    try {
+      const s = await api('/api/mod/login', { method: 'POST', body: { key } });
+      state.modToken = s.token; state.modLabel = s.label; saveMod();
+      $('#modKey').value = ''; $('#modLoginError').textContent = '';
+      $('#modLabel').textContent = s.label; setModAuthedView(true); renderModQueue();
+    } catch (err) { $('#modLoginError').textContent = err.status === 401 ? 'Invalid moderator key.' : err.message; }
+  });
+  $('#modLogout').addEventListener('click', async () => {
+    try { await api('/api/mod/logout', { method: 'POST', headers: modAuth() }); } catch {}
+    state.modToken = null; state.modLabel = null; saveMod(); setModAuthedView(false); showToast('Signed out of moderation.');
+  });
+  $('#modRefresh').addEventListener('click', renderModQueue);
+
   const currentMonth = new Date().toISOString().slice(0, 7); refs.reportForm.elements.date.max = currentMonth;
-  loadReceipts(); updateLocalStats(); renderBoard();
+  loadReceipts(); loadMod(); updateLocalStats(); renderBoard();
   const initial = currentRoute(); showRoute(initial.route, initial.section, { replace: true });
 })();

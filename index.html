@@ -17,7 +17,7 @@
   <div class="demo-boundary" data-testid="demo-boundary">
     <div class="shell demo-boundary__inner">
       <strong>DEMO / FICTIONAL DATA</strong>
-      <span>Bulletins persist on a local community node. This demo still has no end-to-end encryption, federation, or human moderation.</span>
+      <span>Bulletins persist on a local community node with human moderation and optional encryption at rest. This demo still has no end-to-end encryption or federation.</span>
       <button type="button" class="text-action text-action--inverse" data-action="open-data">local data</button>
       <button type="button" class="text-action text-action--inverse" data-action="erase-exit">erase + exit</button>
     </div>
@@ -25,7 +25,7 @@
 
   <header class="site-head shell">
     <div class="brand-block">
-      <p class="eyebrow">WORKER-TO-WORKER SAFETY BULLETIN // BUILD 0.3</p>
+      <p class="eyebrow">WORKER-TO-WORKER SAFETY BULLETIN // BUILD 0.4</p>
       <h1>lilithlist</h1>
       <p class="tagline">minimum data. observable conduct. community-held process.</p>
     </div>
@@ -40,6 +40,7 @@
       <button type="button" data-route="board" aria-current="page">bulletin</button>
       <button type="button" data-route="search">lookup</button>
       <button type="button" data-route="guide">how it works</button>
+      <button type="button" data-route="moderate">moderation</button>
       <button type="button" data-route="report" class="primary-nav__post">+ file safety report</button>
     </div>
   </nav>
@@ -147,15 +148,38 @@
         <article class="prose">
           <section id="guide-model" tabindex="-1"><h3>Threat model</h3><p>The useful unit is a conduct warning linked to a minimum viable partial marker—not a public dossier or universal rating. Combined details can still identify people, so minimization must account for the whole report.</p><ul><li>No legal names, faces, exact addresses, full numbers, IDs, or active locations.</li><li>No bulk export, public indexing, global identity graph, or ad network.</li><li>Search favors explicit partial markers instead of narrative mining.</li><li>Positive notes cannot negate independent warnings.</li></ul></section>
           <section id="guide-post" tabindex="-1"><h3>Posting rules</h3><ol><li>Share only what another worker needs for a screening or safety decision.</li><li>Separate observed behavior from inference or identity speculation.</li><li>Never identify another worker without clear, revocable consent.</li><li>High-risk reports require human review in a real deployment.</li><li>Retaliatory, discriminatory, promotional, or intentionally false reports are removed.</li></ol></section>
-          <section id="guide-network" tabindex="-1"><h3>Network model <span class="concept-label">SINGLE NODE / PARTIALLY IMPLEMENTED</span></h3><pre>worker device  →  privacy-checked draft  →  local community node
+          <section id="guide-network" tabindex="-1"><h3>Network model <span class="concept-label">SINGLE NODE / IMPLEMENTED</span></h3><pre>worker device  →  privacy-checked draft  →  local community node
 community node →  receipt + lifecycle log  →  minimized bulletin
 reporter holds →  private revocation receipt (this browser)
+moderator     →  reviews queue  →  approve / remove / restore
 
-NO PUBLIC API  ·  NO BULK EXPORT  ·  NO UNIVERSAL SCORE</pre><p>This build implements a real single community node: a zero-dependency Node + SQLite backend enforces the privacy checks and 90-day retention server-side, mints a one-time revocation receipt per report, and records lifecycle actions. It does <strong>not</strong> yet implement end-to-end encryption, federation or peer mirroring, pseudonymous authentication, or human moderation and appeals. A multi-node production system also needs protocol design, governance, legal analysis, device security, and adversarial testing.</p></section>
+NO PUBLIC API  ·  NO BULK EXPORT  ·  NO UNIVERSAL SCORE</pre><p>This build implements a real single community node: a zero-dependency Node + SQLite backend enforces the privacy checks and 90-day retention server-side, mints a one-time revocation receipt per report, records lifecycle actions, offers <strong>optional AES-256-GCM encryption at rest</strong> for report narratives, and provides an <strong>authenticated moderator role with a human review queue</strong> — high-risk bulletins, contests, corrections, and emergency-unpublish requests are resolved by a moderator, and every resolution is recorded. It does <strong>not</strong> yet implement end-to-end encryption in transit, federation or peer mirroring across nodes, or reporter pseudonymous accounts (reporters stay account-less by design). A multi-node production system also needs protocol design, governance, jurisdiction-specific legal analysis, device security, and adversarial testing.</p></section>
           <section id="guide-retention" tabindex="-1"><h3>Retention</h3><p>The demo models a 90-day expiry for locally created reports. Expiry removes the local demo record when the browser next loads. A production policy must define what can renew a report, how emergency deletion propagates, and what minimal audit evidence remains.</p></section>
           <section id="guide-removal" tabindex="-1"><h3>Correction, contest, revocation, and emergency unpublish</h3><p>These are separate actions. A correction does not increase corroboration. A reporter needs a private recovery receipt to edit or revoke their report. A subject needs a privacy-preserving contest channel. Emergency unpublishing should propagate before an appeal is resolved.</p><table class="process-table"><thead><tr><th>action</th><th>effect</th><th>demo behavior</th></tr></thead><tbody><tr><td>correct</td><td>request factual revision</td><td>local pending flag</td></tr><tr><td>contest</td><td>challenge accuracy or process</td><td>local disputed flag</td></tr><tr><td>revoke</td><td>reporter withdraws report</td><td>deletes local report only</td></tr><tr><td>emergency unpublish</td><td>hide while safety review occurs</td><td>simulated pending flag</td></tr></tbody></table></section>
           <section id="guide-crisis" tabindex="-1"><h3>Urgent support</h3><p>LilithList is not emergency dispatch and should not imply that police contact is safe, wanted, or available. Production nodes should maintain community-governed mutual-aid and crisis resources, show the last verification date, and never infer a worker’s location without explicit consent.</p></section>
         </article>
+      </div>
+    </section>
+
+    <section class="view" data-view="moderate" aria-labelledby="modHeading" hidden>
+      <header class="page-title"><p class="eyebrow">HUMAN REVIEW / SINGLE NODE</p><h2 id="modHeading" tabindex="-1">moderation</h2><p>Moderators resolve the review queue: high-risk bulletins awaiting review, contested reports, correction requests, and emergency unpublish requests. Every resolution is recorded.</p></header>
+
+      <div id="modLoggedOut" class="mod-auth">
+        <form id="modLoginForm" class="lookup-form">
+          <label><span>moderator key</span><input id="modKey" type="password" autocomplete="off" placeholder="paste your moderator key"></label>
+          <button class="button button--primary" type="submit">sign in</button>
+        </form>
+        <div class="privacy-note"><strong>MODERATOR ACCESS.</strong> Moderators are the only accountable role on the node. Reporters remain account-less. The bootstrap key is printed once in the server log on first run; set <code>MOD_BOOTSTRAP_KEY</code> to choose it.</div>
+        <p id="modLoginError" class="active-filter" aria-live="polite"></p>
+      </div>
+
+      <div id="modLoggedIn" hidden>
+        <div class="mod-bar">
+          <span>signed in as <b id="modLabel">moderator</b></span>
+          <span class="mod-bar__stats" id="modStats" aria-live="polite"></span>
+          <div class="mod-bar__actions"><button type="button" class="button button--quiet" id="modRefresh">refresh</button><button type="button" class="text-action" id="modLogout">sign out</button></div>
+        </div>
+        <div id="modQueue" class="mod-queue" aria-live="polite"></div>
       </div>
     </section>
   </main>
@@ -170,6 +194,6 @@ NO PUBLIC API  ·  NO BULK EXPORT  ·  NO UNIVERSAL SCORE</pre><p>This build imp
 
   <div class="toast" id="toast" role="status" aria-live="polite" hidden><span id="toastText"></span><button type="button" aria-label="Dismiss notification">×</button></div>
 
-  <footer><div class="shell footer-inner"><p><strong>LILITHLIST / PRODUCT PROTOTYPE.</strong> Fictional data only. Runs on a local single-node backend. No end-to-end encryption, federation, or anonymity is implemented.</p><p>plain HTML / CSS / JS · Node + SQLite<br>zero dependencies · local community node</p></div></footer>
+  <footer><div class="shell footer-inner"><p><strong>LILITHLIST / PRODUCT PROTOTYPE.</strong> Fictional data only. Single-node backend with human moderation and optional encryption at rest. No end-to-end encryption or federation is implemented.</p><p>plain HTML / CSS / JS · Node + SQLite<br>zero dependencies · local community node</p></div></footer>
 </body>
 </html>

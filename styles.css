@@ -26,3 +26,23 @@ footer{border-top:2px solid var(--ink);background:var(--soft)}.footer-inner{disp
 .action-log{list-style:none;margin:8px 0 0;padding:0;font-family:var(--mono);font-size:12px}
 .action-log li{padding:4px 0;border-bottom:1px solid var(--line);color:var(--muted)}
 .data-item__actions{display:flex;gap:8px;align-items:start}
+
+/* ── Moderation (v0.4) ─────────────────────────────────────────────────────── */
+.mod-auth{max-width:640px}
+.mod-bar{display:flex;flex-wrap:wrap;align-items:center;gap:12px;padding:12px 14px;border:1px solid var(--line);background:var(--wash);margin-bottom:16px;font-family:var(--mono);font-size:13px}
+.mod-bar__stats{color:var(--muted)}
+.mod-bar__actions{margin-left:auto;display:flex;gap:10px;align-items:center}
+.mod-queue{display:flex;flex-direction:column;gap:16px}
+.mod-card{border:1px solid var(--line);border-left:4px solid var(--accent);padding:14px 16px;background:var(--white)}
+.mod-card__head{display:flex;flex-wrap:wrap;align-items:center;gap:10px}
+.mod-card__head strong{font-size:16px}
+.mod-card__id{margin-left:auto;font-family:var(--mono);font-size:12px;color:var(--muted)}
+.mod-card__meta{font-family:var(--mono);font-size:12px;color:var(--muted);margin:8px 0}
+.mod-card__body{padding:10px;background:var(--wash);border:1px solid var(--line);margin:8px 0;white-space:pre-wrap}
+.mod-card__requests{margin:10px 0}
+.mod-card__requests h4{font-family:var(--mono);font-size:12px;letter-spacing:.06em;color:var(--accent-dark);margin:0 0 6px}
+.mod-request{display:flex;gap:10px;padding:6px 0;border-bottom:1px solid var(--line);font-size:14px}
+.mod-request b{font-family:var(--mono);font-size:12px;text-transform:uppercase;min-width:150px}
+.mod-card__resolve{margin-top:12px;display:flex;flex-direction:column;gap:10px}
+.mod-note{width:100%;padding:8px;border:1px solid var(--line);font-family:var(--sans);font-size:14px}
+.mod-card__controls{display:flex;flex-wrap:wrap;gap:8px}

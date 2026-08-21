@@ -1,9 +1,10 @@
 # LilithList — self-hosted worker-to-worker safety bulletin
 
 A privacy-first peer safety bulletin that now runs as a real **single community node**:
-a dependency-free front end backed by a **zero-dependency Node + SQLite** server.
-Bulletins persist on the node instead of only in the browser, while the reporter keeps
-a private revocation receipt locally. The visual language combines Craigslist-style
+a dependency-free front end backed by a **zero-dependency Node + SQLite** server with
+optional encryption at rest and an authenticated human-moderation queue. Bulletins
+persist on the node instead of only in the browser, while the reporter keeps a private
+revocation receipt locally. The visual language combines Craigslist-style
 information density, early-2000s forum/BBS conventions, and a restrained brutalist
 component system.
 
@@ -39,9 +40,10 @@ npm run test:e2e   # Playwright end-to-end; spawns its own node on a throwaway D
 ```
 browser (index.html + app.js)         zero-dependency Node server
   fetch /api/*  ───────────────▶  server/app.mjs      request routing, CSP, rate limits
-                                  server/db.mjs       node:sqlite store + 90-day sweep
+                                  server/db.mjs       node:sqlite store, retention, moderation
                                   server/domain.mjs   authoritative validation + enums
                                   server/privacy.mjs  PII scanner (server re-checks)
+                                  server/crypto.mjs   AES-256-GCM encryption at rest
                                   server/ratelimit.mjs hashed-IP token buckets
   localStorage: private receipts only          data/lilithlist.db (local file)
 ```
@@ -60,6 +62,14 @@ Key design decisions:
 - **Lifecycle is real:** corroboration (deduped per browser), correction, contest, and
   emergency-unpublish (which hides a bulletin immediately, pending review) are distinct
   actions recorded on the node. Retention is a server-enforced 90-day expiry.
+- **Human moderation closes the loop:** an authenticated moderator role reviews a queue
+  of high-risk, contested, correction-pending, and emergency-unpublished bulletins and
+  resolves each (approve / remove / restore / dismiss). Every resolution is recorded in a
+  `moderations` audit table. Moderators are the only accountable identity on the node;
+  reporters stay account-less.
+- **Optional encryption at rest:** set `LILITH_SECRET_KEY` (32 bytes) and report
+  narratives, lifecycle reasons, and moderation notes are stored as AES-256-GCM
+  ciphertext. The key lives in the operator's environment, never in the database.
 
 ## API
 
@@ -72,6 +82,9 @@ Key design decisions:
 | POST | `/api/reports/:id/corroborate` | +1, deduped per browser |
 | POST | `/api/reports/:id/actions` | correction / contest / emergency-unpublish |
 | POST | `/api/reports/:id/revoke` | owner-only delete (requires receipt) |
+| POST | `/api/mod/login` | moderator sign-in → bearer session token |
+| GET  | `/api/mod/queue` | review queue + counts (bearer) |
+| POST | `/api/mod/reports/:id/resolve` | approve / remove / restore / dismiss (bearer) |
 | GET  | `/api/health`, `/api/stats` | liveness / counts |
 
 ## Launching it for real people
@@ -162,7 +175,28 @@ set `LILITH_DB` to a path inside it, and set `HOST=0.0.0.0` and `TRUST_PROXY=1`.
 | `HOST` | `127.0.0.1` | use `0.0.0.0` only inside Docker/behind a proxy |
 | `LILITH_DB` | `data/lilithlist.db` | put this on durable storage in production |
 | `TRUST_PROXY` | off | set to `1` **only** when behind a proxy you control |
+| `LILITH_SECRET_KEY` | off | 32 bytes (64 hex chars) enabling AES-256-GCM encryption at rest |
+| `MOD_BOOTSTRAP_KEY` | — | sets the first moderator key; if unset one is generated and printed once |
 | `NODE_ENV` | — | set to `production` |
+
+### Moderation & encryption (production)
+
+Turn on encryption at rest and choose your first moderator key:
+
+```bash
+# generate a 32-byte key once and keep it in the environment (not in the repo)
+export LILITH_SECRET_KEY=$(openssl rand -hex 32)
+export MOD_BOOTSTRAP_KEY=$(openssl rand -base64 24)
+npm start
+```
+
+- Narratives, lifecycle reasons, and moderation notes are then stored as AES-256-GCM
+  ciphertext. **If you lose `LILITH_SECRET_KEY`, encrypted bulletins are unrecoverable** —
+  back the key up separately from the database.
+- The moderator signs in at the site's **moderation** tab with `MOD_BOOTSTRAP_KEY`. If you
+  do not set it, a key is generated and printed once in the server log on first run.
+- In the systemd unit above, add `LILITH_SECRET_KEY=…` and `MOD_BOOTSTRAP_KEY=…` to the
+  `Environment=` line (or use an `EnvironmentFile=` so secrets stay out of the unit).
 
 ### Operating the node
 
@@ -177,17 +211,21 @@ set `LILITH_DB` to a path inside it, and set `HOST=0.0.0.0` and `TRUST_PROXY=1`.
 
 ## Production boundary
 
-This build implements a working single node. It still does **not** implement:
+This build implements a working, moderated single node with optional encryption at rest.
+It still does **not** implement:
 
-- end-to-end encryption or encryption at rest
-- federation, peer sync/mirroring, or signed cross-node bulletins
-- anonymity or pseudonymous authentication (rate limiting hashes IPs but is not anonymity)
-- human moderation, appeals, or anti-brigading enforcement
-- correction/removal propagation across nodes
+- end-to-end (in-transit) encryption — TLS terminates at your reverse proxy; the node
+  sees plaintext in memory
+- federation, peer sync/mirroring, or signed cross-node bulletins, and therefore no
+  correction/removal propagation *between* nodes
+- reporter anonymity beyond being account-less (IP-hash rate limiting is not anonymity;
+  run behind Tor/a privacy proxy if network-level anonymity matters to your users)
+- anti-brigading/sybil resistance beyond per-browser dedup and rate limits
 - jurisdiction-aware retention or independently verified crisis resources
 
-A real deployment requires survivor-centered governance, jurisdiction-specific legal
-analysis, privacy threat modeling, encryption/device-security engineering, abuse-resistant
-moderation and appeals, operational security, and independent adversarial testing.
+A real deployment still requires survivor-centered governance, jurisdiction-specific legal
+analysis, privacy threat modeling, in-transit/device-security engineering, an appeals
+process with real moderators, operational security, and independent adversarial testing.
+The software now does its part of the loop; the human and legal parts remain yours.
 
 The original first-pass artifact is preserved as `index-v1.html`.

@@ -15,6 +15,20 @@ const app = createApp({ dbPath: DB_PATH });
 const seeded = seedIfEmpty(app.store);
 if (seeded) console.log(`[lilithlist] seeded ${seeded} fictional bulletins`);
 
+// Ensure a moderator exists. A freshly generated key is printed exactly once —
+// record it now; only its hash is stored and it cannot be shown again.
+const boot = app.store.ensureBootstrapModerator(process.env.MOD_BOOTSTRAP_KEY);
+if (boot.created && boot.generated) {
+  console.log('\n  ┌─ MODERATOR BOOTSTRAP KEY (shown once) ───────────────────');
+  console.log(`  │  ${boot.key}`);
+  console.log('  │  Sign in at /  →  "moderation"  →  this key.');
+  console.log('  └──────────────────────────────────────────────────────────\n');
+} else if (boot.created) {
+  console.log('[lilithlist] moderator created from MOD_BOOTSTRAP_KEY');
+}
+if (process.env.LILITH_SECRET_KEY) console.log('[lilithlist] encryption at rest: ENABLED');
+else console.log('[lilithlist] encryption at rest: OFF (set LILITH_SECRET_KEY for production)');
+
 const server = createServer(app);
 server.listen(PORT, HOST, () => {
   console.log(`[lilithlist] community node listening on http://${HOST}:${PORT}`);
