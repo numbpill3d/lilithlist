@@ -39,7 +39,10 @@ test.before(async () => {
     stdio: 'ignore'
   });
   await waitForHealth();
-  browser = await chromium.launch({ headless: true });
+  const launchOpts = { headless: true };
+  const exe = process.env.PW_CHROMIUM || (require('node:fs').existsSync('/usr/bin/chromium') ? '/usr/bin/chromium' : undefined);
+  if (exe) launchOpts.executablePath = exe;
+  browser = await chromium.launch(launchOpts);
 });
 
 test.after(async () => {

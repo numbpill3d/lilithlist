@@ -1,6 +1,6 @@
 {
   "name": "lilithlist",
-  "version": "0.4.0",
+  "version": "0.5.0",
   "private": true,
   "description": "Privacy-first, self-hosted worker-to-worker safety bulletin node. Zero runtime dependencies.",
   "type": "module",
@@ -8,7 +8,7 @@
   "scripts": {
     "start": "node server/server.mjs",
     "dev": "node --watch server/server.mjs",
-    "test": "node --test tests/api.test.mjs tests/crypto.test.mjs",
+    "test": "node --test tests/api.test.mjs tests/crypto.test.mjs tests/federation.test.mjs",
     "test:e2e": "node --test tests/e2e.test.cjs"
   },
   "license": "MIT"

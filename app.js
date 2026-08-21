@@ -95,6 +95,7 @@
     const risk = el('span', { className: `risk risk--${report.risk}`, text: RISK_LABELS[report.risk] || 'info' });
     const title = el('button', { className: 'bulletin-row__title', type: 'button', text: report.title, dataset: { thread: report.id }, 'aria-label': `Open bulletin ${report.id}: ${report.title}` });
     const meta = el('div', { className: 'bulletin-row__meta' }, [
+      report.mirror ? el('b', { className: 'mirror-badge', text: `◇ mirror · ${report.originShort}` }) : null,
       el('span', { text: report.identifier || 'conduct-only / no marker' }),
       el('b', { className: `state state--${report.state}`, text: report.state === 'correction-pending' ? 'pending correction' : stateLabel(report.state) }),
       el('span', { text: `${report.corroborations || 0} corroboration${report.corroborations === 1 ? '' : 's'}` }),
@@ -191,6 +192,14 @@
     const dl = el('dl', { className: 'detail-grid' });
     addDefinition(dl, 'receipt', report.id); addDefinition(dl, 'publication', stateLabel(report.state)); addDefinition(dl, 'evidence', 'direct report'); addDefinition(dl, 'identifier', report.identifier || 'withheld / conduct-only'); addDefinition(dl, 'region', report.region); addDefinition(dl, 'approx. date', report.date); addDefinition(dl, 'context', report.context); addDefinition(dl, 'markers', (report.tags || []).join(' · ') || 'none supplied'); addDefinition(dl, 'expires', `${formatDate(report.expiresAt)} (${daysUntil(report.expiresAt)} days)`); addDefinition(dl, 'source', report.source);
     refs.threadBody.append(dl, el('div', { className: 'report-copy', text: report.details }));
+
+    if (report.mirror) {
+      refs.threadBody.append(el('section', { className: 'action-section mirror-note' }, [
+        el('h3', { text: 'mirrored bulletin' }),
+        el('p', { text: `This bulletin is mirrored from another node (${report.originShort}…) and is read-only here. Corroboration, correction, contest, and removal are governed by its origin node. Its signature was verified on sync.` })
+      ]));
+      return;
+    }
 
     const verification = el('section', { className: 'action-section' }, [el('h3', { text: 'verification' }), el('p', { text: 'Corroboration means direct, independent recognition of the conduct pattern or partial marker. It does not renew expiry.' })]);
     const count = el('p', { dataset: { testid: 'corroboration-count' }, text: `${report.corroborations || 0} corroborations on this fictional/demo record` });
@@ -406,7 +415,7 @@
     try {
       const s = await api('/api/mod/session', { headers: modAuth() });
       state.modLabel = s.label; $('#modLabel').textContent = s.label;
-      setModAuthedView(true); renderModQueue();
+      setModAuthedView(true); renderModQueue(); renderFederation();
     } catch (err) {
       if (err.status === 401) { state.modToken = null; saveMod(); }
       setModAuthedView(false);
@@ -460,6 +469,29 @@
     } catch (err) { if (err.status === 401) { state.modToken = null; saveMod(); setModAuthedView(false); } showToast(err.message); }
   }
 
+  async function renderFederation() {
+    const panel = $('#fedPanel');
+    let data;
+    try { data = await api('/api/federation/status', { headers: modAuth() }); }
+    catch { panel.hidden = true; return; }
+    panel.hidden = false;
+    $('#fedNode').textContent = data.node ? data.node.slice(0, 16) + '…' : '—';
+    $('#fedPeers').textContent = String(data.peers.length);
+    $('#fedMirrors').textContent = String(data.mirrors);
+  }
+  async function syncPeers() {
+    const out = $('#fedResult');
+    out.textContent = 'Syncing…';
+    try {
+      const data = await api('/api/federation/sync', { method: 'POST', headers: modAuth() });
+      if (!data.results.length) { out.textContent = 'No peers configured in data/peers.json.'; }
+      else {
+        out.textContent = data.results.map(r => r.error ? `${r.peer}: error (${r.error})` : `${r.peer}: +${r.added} mirrored, −${r.removed} removed${r.rejected ? `, ${r.rejected} rejected` : ''}`).join(' · ');
+      }
+      renderFederation(); renderBoard();
+    } catch (err) { out.textContent = err.message; }
+  }
+
   let toastTimer;
   function showToast(message) { clearTimeout(toastTimer); refs.toastText.textContent = message; refs.toast.hidden = false; toastTimer = setTimeout(() => refs.toast.hidden = true, 7000); }
 
@@ -511,7 +543,7 @@
       const s = await api('/api/mod/login', { method: 'POST', body: { key } });
       state.modToken = s.token; state.modLabel = s.label; saveMod();
       $('#modKey').value = ''; $('#modLoginError').textContent = '';
-      $('#modLabel').textContent = s.label; setModAuthedView(true); renderModQueue();
+      $('#modLabel').textContent = s.label; setModAuthedView(true); renderModQueue(); renderFederation();
     } catch (err) { $('#modLoginError').textContent = err.status === 401 ? 'Invalid moderator key.' : err.message; }
   });
   $('#modLogout').addEventListener('click', async () => {
@@ -519,6 +551,7 @@
     state.modToken = null; state.modLabel = null; saveMod(); setModAuthedView(false); showToast('Signed out of moderation.');
   });
   $('#modRefresh').addEventListener('click', renderModQueue);
+  $('#fedSync').addEventListener('click', syncPeers);
 
   const currentMonth = new Date().toISOString().slice(0, 7); refs.reportForm.elements.date.max = currentMonth;
   loadReceipts(); loadMod(); updateLocalStats(); renderBoard();

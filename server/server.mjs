@@ -28,6 +28,9 @@ if (boot.created && boot.generated) {
 }
 if (process.env.LILITH_SECRET_KEY) console.log('[lilithlist] encryption at rest: ENABLED');
 else console.log('[lilithlist] encryption at rest: OFF (set LILITH_SECRET_KEY for production)');
+console.log(`[lilithlist] node id: ${app.identity.publicKey.slice(0, 16)}…`);
+const peerCount = app.reloadPeers().length;
+console.log(`[lilithlist] federation peers: ${peerCount}${peerCount ? '' : ' (none configured; add data/peers.json)'}`);
 
 const server = createServer(app);
 server.listen(PORT, HOST, () => {

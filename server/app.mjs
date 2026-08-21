@@ -7,6 +7,7 @@ import { createHash, randomBytes } from 'node:crypto';
 import { Store } from './db.mjs';
 import { validateReportInput, validateAction } from './domain.mjs';
 import { RateLimiter } from './ratelimit.mjs';
+import { loadOrCreateIdentity, loadPeers, buildFeed, pullFromPeer } from './federation.mjs';
 
 const ROOT = dirname(dirname(fileURLToPath(import.meta.url)));
 const STATIC_FILES = {
@@ -84,7 +85,7 @@ const DEFAULT_LIMITS = {
   action: { capacity: 20, refillPerMinute: 20 }
 };
 
-export function createApp({ dbPath = 'data/lilithlist.db', limits = {} } = {}) {
+export function createApp({ dbPath = 'data/lilithlist.db', limits = {}, nodeKeyPath, peersPath: peersPathOpt } = {}) {
   const store = new Store(dbPath);
   const secret = randomBytes(24).toString('hex');
   const cfg = {
@@ -97,10 +98,25 @@ export function createApp({ dbPath = 'data/lilithlist.db', limits = {} } = {}) {
     lookup: new RateLimiter(cfg.lookup),
     action: new RateLimiter(cfg.action)
   };
+  const identity = loadOrCreateIdentity(nodeKeyPath || process.env.LILITH_NODE_KEY || 'data/node_identity.json');
+  const peersPath = peersPathOpt || process.env.LILITH_PEERS || 'data/peers.json';
+  let peers = loadPeers(peersPath);
+  const reloadPeers = () => { peers = loadPeers(peersPath); return peers; };
+  async function syncAllPeers() {
+    const results = [];
+    for (const peer of peers) results.push(await pullFromPeer(store, peer));
+    return results;
+  }
   const pruneTimer = setInterval(() => {
     for (const l of Object.values(limiters)) l.prune();
   }, 3600000);
   if (pruneTimer.unref) pruneTimer.unref();
+  const federationInterval = Number.parseInt(process.env.FEDERATION_INTERVAL_MS || '0', 10);
+  let syncTimer = null;
+  if (federationInterval > 0) {
+    syncTimer = setInterval(() => { syncAllPeers().catch(() => {}); }, federationInterval);
+    if (syncTimer.unref) syncTimer.unref();
+  }
 
   async function handler(req, res) {
     const url = new URL(req.url, 'http://localhost');
@@ -174,8 +190,10 @@ export function createApp({ dbPath = 'data/lilithlist.db', limits = {} } = {}) {
 
       if (!sub && method === 'GET') {
         const report = store.get(id);
-        if (!report) return send(res, 404, { error: 'Bulletin not found or no longer published.' });
-        return send(res, 200, { report, actions: store.actionsFor(id) });
+        if (report) return send(res, 200, { report, actions: store.actionsFor(id) });
+        const mirror = store.getMirror(id);
+        if (mirror) return send(res, 200, { report: mirror, actions: [], mirror: true });
+        return send(res, 404, { error: 'Bulletin not found or no longer published.' });
       }
 
       if (sub === '/corroborate' && method === 'POST') {
@@ -207,6 +225,29 @@ export function createApp({ dbPath = 'data/lilithlist.db', limits = {} } = {}) {
         if (!result.ok && result.code === 403) return send(res, 403, { error: 'Receipt did not match. Only the reporter can revoke this bulletin.' });
         return send(res, 200, { ok: true });
       }
+    }
+
+    // ── Federation ─────────────────────────────────────────────────────────
+    if (path === '/api/federation/feed' && method === 'GET') {
+      return send(res, 200, buildFeed(store, identity));
+    }
+    if (path === '/api/federation/status') {
+      const mod = store.moderatorForToken(bearer(req));
+      if (!mod) return send(res, 401, { error: 'Moderator authentication required.' });
+      if (method === 'GET') {
+        return send(res, 200, {
+          node: identity.publicKey,
+          peers: peers.map(p => ({ label: p.label, url: p.url, pubkey: p.pubkey })),
+          mirrors: store.mirrorCount()
+        });
+      }
+    }
+    if (path === '/api/federation/sync' && method === 'POST') {
+      const mod = store.moderatorForToken(bearer(req));
+      if (!mod) return send(res, 401, { error: 'Moderator authentication required.' });
+      reloadPeers();
+      const results = await syncAllPeers();
+      return send(res, 200, { results, mirrors: store.mirrorCount() });
     }
 
     // ── Moderation (bearer-authenticated) ──────────────────────────────────
@@ -248,6 +289,9 @@ export function createApp({ dbPath = 'data/lilithlist.db', limits = {} } = {}) {
   }
 
   handler.store = store;
-  handler.close = () => { clearInterval(pruneTimer); store.close(); };
+  handler.identity = identity;
+  handler.syncAllPeers = syncAllPeers;
+  handler.reloadPeers = reloadPeers;
+  handler.close = () => { clearInterval(pruneTimer); if (syncTimer) clearInterval(syncTimer); store.close(); };
   return handler;
 }

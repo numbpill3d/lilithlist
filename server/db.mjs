@@ -87,6 +87,22 @@ export class Store {
         created_at     TEXT NOT NULL
       );
       CREATE INDEX IF NOT EXISTS idx_moderations_report ON moderations(report_id);
+
+      CREATE TABLE IF NOT EXISTS tombstones (
+        id      TEXT PRIMARY KEY,
+        reason  TEXT NOT NULL DEFAULT '',
+        at      TEXT NOT NULL
+      );
+
+      CREATE TABLE IF NOT EXISTS mirrors (
+        origin_node TEXT NOT NULL,
+        id          TEXT NOT NULL,
+        record      TEXT NOT NULL,
+        expires_at  TEXT NOT NULL,
+        synced_at   TEXT NOT NULL,
+        PRIMARY KEY (origin_node, id)
+      );
+      CREATE INDEX IF NOT EXISTS idx_mirrors_expiry ON mirrors(expires_at);
     `);
   }
 
@@ -122,13 +138,14 @@ export class Store {
     const info = this.db.prepare('DELETE FROM reports WHERE expires_at <= ?').run(now);
     this.db.prepare('DELETE FROM actions WHERE expires_at <= ?').run(now);
     this.db.prepare('DELETE FROM mod_sessions WHERE expires_at <= ?').run(now);
+    this.db.prepare('DELETE FROM mirrors WHERE expires_at <= ?').run(now);
     return info.changes;
   }
 
   listPublished({ query = '', region = 'all', risk = 'all', sort = 'newest', page = 1 } = {}) {
     this.sweepExpired();
     const rows = this.db.prepare('SELECT * FROM reports WHERE published = 1').all();
-    let reports = rows.map(r => this.#rowToReport(r));
+    let reports = rows.map(r => this.#rowToReport(r)).concat(this.listMirrors());
     const q = query.trim().toLowerCase();
     reports = reports.filter(r =>
       (region === 'all' || r.region === region) &&
@@ -221,6 +238,7 @@ export class Store {
     const row = this.db.prepare('SELECT receipt_hash FROM reports WHERE id = ?').get(id);
     if (!row) return { ok: false, code: 404 };
     if (!row.receipt_hash || row.receipt_hash !== sha256(receipt)) return { ok: false, code: 403 };
+    this.#tombstone(id, 'revoked');
     this.db.prepare('DELETE FROM reports WHERE id = ?').run(id);
     return { ok: true };
   }
@@ -283,6 +301,7 @@ export class Store {
     else if (action === 'dismiss') { published = report.published ? 1 : 0; state = 'reviewed'; }
     else return { ok: false, code: 400 };
 
+    if (action === 'remove' && report.source === 'community node') this.#tombstone(id, 'removed by moderator');
     this.db.prepare('UPDATE reports SET published = ?, state = ? WHERE id = ?').run(published, state, id);
     this.db.prepare("UPDATE actions SET status = 'resolved' WHERE report_id = ? AND status = 'pending'").run(id);
     this.db.prepare('INSERT INTO moderations (id, report_id, moderator_label, action, note, created_at) VALUES (?, ?, ?, ?, ?, ?)')
@@ -293,6 +312,67 @@ export class Store {
   moderationsFor(id) {
     return this.db.prepare('SELECT id, action, moderator_label AS moderator, note, created_at AS createdAt FROM moderations WHERE report_id = ? ORDER BY created_at DESC')
       .all(id).map(m => ({ ...m, note: decryptField(m.note) }));
+  }
+
+  // ── Federation ─────────────────────────────────────────────────────────────
+  #tombstone(id, reason) {
+    this.db.prepare('INSERT OR REPLACE INTO tombstones (id, reason, at) VALUES (?, ?, ?)')
+      .run(id, reason, new Date().toISOString());
+  }
+
+  // Public, minimized bulletin payloads authored by THIS node (not mirrors, not
+  // fictional seeds), for signing into the federation feed.
+  originFeedBulletins() {
+    this.sweepExpired();
+    const rows = this.db.prepare("SELECT * FROM reports WHERE published = 1 AND source = 'community node'").all();
+    return rows.map(r => {
+      const rep = this.#rowToReport(r);
+      return {
+        id: rep.id, risk: rep.risk, region: rep.region, idType: rep.idType,
+        identifier: rep.identifier, title: rep.title, details: rep.details,
+        date: rep.date, context: rep.context, tags: rep.tags,
+        corroborations: rep.corroborations, state: rep.state,
+        createdAt: rep.createdAt, expiresAt: rep.expiresAt
+      };
+    });
+  }
+
+  feedTombstones() {
+    return this.db.prepare('SELECT id, reason, at FROM tombstones ORDER BY at DESC').all();
+  }
+
+  upsertMirror(originNode, record) {
+    this.db.prepare('INSERT OR REPLACE INTO mirrors (origin_node, id, record, expires_at, synced_at) VALUES (?, ?, ?, ?, ?)')
+      .run(originNode, record.id, JSON.stringify(record), record.expiresAt, new Date().toISOString());
+  }
+
+  removeMirror(originNode, id) {
+    return this.db.prepare('DELETE FROM mirrors WHERE origin_node = ? AND id = ?').run(originNode, id).changes > 0;
+  }
+
+  #mirrorToReport(row, shortNode) {
+    const rec = JSON.parse(row.record);
+    return {
+      ...rec, published: true, source: `mirror:${shortNode}`,
+      mirror: true, origin: row.origin_node, originShort: shortNode,
+      updated: relativeTime(rec.createdAt), tags: rec.tags || []
+    };
+  }
+
+  listMirrors() {
+    this.sweepExpired();
+    return this.db.prepare('SELECT * FROM mirrors').all()
+      .map(row => this.#mirrorToReport(row, row.origin_node.slice(0, 8)));
+  }
+
+  getMirror(id) {
+    this.sweepExpired();
+    const row = this.db.prepare('SELECT * FROM mirrors WHERE id = ?').get(id);
+    return row ? this.#mirrorToReport(row, row.origin_node.slice(0, 8)) : null;
+  }
+
+  mirrorCount() {
+    return this.db.prepare('SELECT COUNT(*) AS n FROM mirrors').get().n;
   }
 
   stats() {
