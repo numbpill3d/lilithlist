@@ -1,0 +1,175 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="LilithList — a privacy-first peer safety bulletin product prototype.">
+  <meta name="color-scheme" content="light">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self'; object-src 'none'; base-uri 'none'; form-action 'self'">
+  <title>LilithList // peer safety board</title>
+  <link rel="icon" href="icon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="styles.css">
+  <script src="app.js" defer></script>
+</head>
+<body>
+  <a class="skip" href="#content">skip to content</a>
+
+  <div class="demo-boundary" data-testid="demo-boundary">
+    <div class="shell demo-boundary__inner">
+      <strong>DEMO / FICTIONAL DATA</strong>
+      <span>Bulletins persist on a local community node. This demo still has no end-to-end encryption, federation, or human moderation.</span>
+      <button type="button" class="text-action text-action--inverse" data-action="open-data">local data</button>
+      <button type="button" class="text-action text-action--inverse" data-action="erase-exit">erase + exit</button>
+    </div>
+  </div>
+
+  <header class="site-head shell">
+    <div class="brand-block">
+      <p class="eyebrow">WORKER-TO-WORKER SAFETY BULLETIN // BUILD 0.3</p>
+      <h1>lilithlist</h1>
+      <p class="tagline">minimum data. observable conduct. community-held process.</p>
+    </div>
+    <div class="node-card" aria-label="Simulated node status">
+      <div><span class="status-square" aria-hidden="true"></span><strong>SIMULATED NODE LL-04</strong></div>
+      <dl><dt>connection</dt><dd>local node</dd><dt>dataset</dt><dd>fictional</dd><dt>retention</dt><dd>90-day model</dd></dl>
+    </div>
+  </header>
+
+  <nav class="primary-nav" aria-label="Primary">
+    <div class="shell primary-nav__inner">
+      <button type="button" data-route="board" aria-current="page">bulletin</button>
+      <button type="button" data-route="search">lookup</button>
+      <button type="button" data-route="guide">how it works</button>
+      <button type="button" data-route="report" class="primary-nav__post">+ file safety report</button>
+    </div>
+  </nav>
+
+  <main id="content" class="shell" tabindex="-1">
+    <div id="routeAnnouncement" class="sr-only" aria-live="polite"></div>
+
+    <section class="view" data-view="board" aria-labelledby="boardHeading">
+      <div class="operational-note">
+        <strong>NOT EMERGENCY DISPATCH.</strong>
+        <span>This board is not continuously monitored. Use the safest trusted local support available to you.</span>
+        <a href="#guide-crisis" data-route="guide" data-section="guide-crisis">urgent support model</a>
+      </div>
+
+      <div class="board-layout">
+        <div class="board-main">
+          <header class="section-title">
+            <div><p class="eyebrow">DIRECTORY / SAFETY BULLETINS</p><h2 id="boardHeading" tabindex="-1">recent bulletins</h2></div>
+            <span id="resultCount" class="result-count" aria-live="polite">0 posts</span>
+          </header>
+
+          <form class="filterbar" id="filterForm">
+            <label class="filterbar__query"><span>search report text</span><input id="boardQuery" type="search" autocomplete="off" placeholder="partial marker, behavior, receipt…"></label>
+            <label><span>region</span><select id="regionFilter"><option value="all">all regions</option><option value="withheld">withheld</option><option value="northeast">northeast</option><option value="midwest">midwest</option><option value="south">south</option><option value="west">west</option><option value="online">online / remote</option></select></label>
+            <label><span>level</span><select id="riskFilter"><option value="all">all levels</option><option value="high">high risk</option><option value="medium">caution</option><option value="info">information</option><option value="safe">positive note</option></select></label>
+            <label><span>sort</span><select id="sortFilter"><option value="newest">newest</option><option value="expiry">expiry soon</option><option value="risk">risk level</option></select></label>
+            <button type="button" class="button button--quiet" id="clearFilters" disabled>clear</button>
+          </form>
+          <p class="active-filter" id="activeFilter" aria-live="polite"></p>
+
+          <div class="board" id="boardList" role="list" aria-label="Safety bulletins"></div>
+          <div class="pagination" id="pagination" aria-label="Bulletin pagination"></div>
+
+          <div class="legend" aria-label="Safety level legend">
+            <span><i class="swatch swatch--high"></i>high risk</span><span><i class="swatch swatch--medium"></i>caution</span><span><i class="swatch swatch--info"></i>information</span><span><i class="swatch swatch--safe"></i>positive note</span>
+          </div>
+        </div>
+
+        <aside class="sidebar" aria-label="Board guidance">
+          <section class="side-panel">
+            <h3>THIS DEMO BROWSER</h3>
+            <dl class="status-list"><dt>your receipts</dt><dd id="localReportCount">0</dd><dt>pending actions</dt><dd id="pendingActionCount">0</dd><dt>bulletins</dt><dd>on node</dd><dt>receipts</dt><dd>this browser</dd></dl>
+            <button type="button" class="text-action" data-action="open-data">manage local receipts →</button>
+          </section>
+          <section class="side-panel">
+            <h3>BEFORE YOU POST</h3>
+            <ul><li>Describe conduct, not identity.</li><li>Use partial markers only.</li><li>Withhold active locations.</li><li>Check for mosaic identification.</li></ul>
+            <button type="button" class="text-action" data-route="report">start privacy review →</button>
+          </section>
+          <section class="side-panel">
+            <h3>GOVERNANCE</h3>
+            <ul><li><a href="#guide-removal" data-route="guide" data-section="guide-removal">correction + removal</a></li><li><a href="#guide-retention" data-route="guide" data-section="guide-retention">retention rules</a></li><li><a href="#guide-network" data-route="guide" data-section="guide-network">network model</a></li></ul>
+          </section>
+        </aside>
+      </div>
+    </section>
+
+    <section class="view" data-view="search" aria-labelledby="searchHeading" hidden>
+      <header class="page-title"><p class="eyebrow">PRIVATE LOOKUP / LOCAL DEMO DATASET</p><h2 id="searchHeading" tabindex="-1">lookup</h2><p>Search only normalized partial identifiers. Narrative text is deliberately excluded.</p></header>
+      <form id="lookupForm" class="lookup-form">
+        <label><span>partial identifier</span><input id="lookupQuery" autocomplete="off" inputmode="search" placeholder="e.g. ending 4421 or traveler77" minlength="3" maxlength="32"></label>
+        <button class="button button--primary" type="submit">search node</button>
+      </form>
+      <div class="privacy-note"><strong>QUERY HYGIENE:</strong> use the minimum fragment needed. Do not paste a full number, legal name, address, private message log, payment identifier, or photograph. This lookup runs against the node over partial markers only, with server-side rate limiting. Full production privacy properties are still not implemented.</div>
+      <div class="rate-meter"><span>DEMO ABUSE-RESISTANCE MODEL</span><span id="lookupMeter">0 / 5 lookups this session</span></div>
+      <div class="search-results"><header class="section-title"><h3>matches</h3><span id="lookupCount" aria-live="polite">enter 3–32 characters</span></header><div class="board" id="lookupList" role="list"></div></div>
+    </section>
+
+    <section class="view" data-view="report" aria-labelledby="reportHeading" hidden>
+      <header class="page-title"><p class="eyebrow">DRAFT → PRIVACY REVIEW → LOCAL SAVE</p><h2 id="reportHeading" tabindex="-1">file a safety report</h2><p>No draft is autosaved. The final step publishes a minimized bulletin to the community node and returns a one-time private recovery receipt.</p></header>
+      <div class="report-layout">
+        <form id="reportForm" class="report-form" novalidate autocomplete="off">
+          <div id="formErrorSummary" class="error-summary" data-testid="privacy-error-summary" tabindex="-1" hidden></div>
+          <section class="form-step"><h3><b>01</b> classify the conduct</h3><div class="form-grid">
+            <label>Safety level <em>required</em><select name="risk" required><option value="">choose…</option><option value="high">high risk / immediate concern</option><option value="medium">caution / boundary issue</option><option value="info">information / verification</option><option value="safe">positive safety note</option></select></label>
+            <label>Broad region <em>required</em><select name="region" required><option value="">choose…</option><option value="withheld">withhold region</option><option value="northeast">northeast</option><option value="midwest">midwest</option><option value="south">south</option><option value="west">west</option><option value="online">online / remote</option></select><small>Never post a current or exact location.</small></label>
+          </div></section>
+          <section class="form-step"><h3><b>02</b> minimum marker</h3><div class="form-grid">
+            <label>Identifier type <em>required</em><select name="idType" required><option value="">choose…</option><option>no identifier / conduct-only</option><option>phone fragment</option><option>platform handle fragment</option><option>email fragment</option><option>venue alias</option><option>other non-unique marker</option></select></label>
+            <label>Partial identifier <em>optional</em><input name="identifier" maxlength="32" placeholder="phone ending 4421"><small>Leave blank if any marker would increase risk.</small></label>
+            <label class="full">Bulletin title <em>required</em><input name="title" maxlength="90" required placeholder="Short, factual description of conduct"></label>
+          </div></section>
+          <section class="form-step"><h3><b>03</b> observed behavior</h3><div class="form-grid">
+            <label class="full">What happened <em>required</em><textarea name="details" maxlength="1200" required placeholder="Describe actions, boundaries, and sequence. Avoid identity speculation."></textarea><small><span id="charCount">0</span>/1200 characters</small></label>
+            <label>Approximate month <em>required</em><input name="date" type="month" required></label>
+            <label>Context <em>required</em><select name="context" required><option value="">choose…</option><option>screening / booking</option><option>in-person appointment</option><option>online session</option><option>payment / chargeback</option><option>transport / venue</option><option>other</option></select></label>
+            <fieldset class="full"><legend>Conduct markers <span>optional</span></legend><div class="check-grid"><label><input type="checkbox" name="tags" value="boundary pushing">boundary pushing</label><label><input type="checkbox" name="tags" value="payment issue">payment issue</label><label><input type="checkbox" name="tags" value="threat / intimidation">threat / intimidation</label><label><input type="checkbox" name="tags" value="surveillance concern">surveillance concern</label><label><input type="checkbox" name="tags" value="identity mismatch">identity mismatch</label><label><input type="checkbox" name="tags" value="positive screening">positive screening</label></div></fieldset>
+          </div></section>
+          <section class="form-step"><h3><b>04</b> privacy check</h3><div class="check-stack">
+            <label><input type="checkbox" required> I removed full contact details, names, exact addresses, IDs, faces, plates, room numbers, and active locations.</label>
+            <label><input type="checkbox" required> I described conduct I directly experienced or can accurately corroborate.</label>
+            <label><input type="checkbox" required> I considered whether the combined month, region, context, and narrative could identify me or another worker.</label>
+            <label><input type="checkbox" required> I understand localStorage is unencrypted and visible to this browser profile.</label>
+          </div></section>
+          <div class="form-actions"><button type="reset" class="button button--quiet">reset draft</button><button type="submit" class="button button--primary">review report</button></div>
+        </form>
+        <aside class="report-aside"><h3>WHAT THE DEMO CHECKS</h3><ul><li>Full or formatted phone numbers</li><li>Email addresses and URLs</li><li>Street-address patterns</li><li>Exact dates and likely room numbers</li><li>Direct @handles</li></ul><p>Pattern checks are illustrative and cannot guarantee de-identification.</p><h3>RETENTION MODEL</h3><p>Local demo reports expire after 90 days. Corroboration does not automatically renew them.</p></aside>
+      </div>
+    </section>
+
+    <section class="view" data-view="guide" aria-labelledby="guideHeading" hidden>
+      <header class="page-title"><p class="eyebrow">PRODUCT + GOVERNANCE MODEL</p><h2 id="guideHeading" tabindex="-1">how it works</h2><p>A credible safety board requires process around the report—not only a submission form.</p></header>
+      <div class="guide-layout">
+        <nav class="guide-toc" aria-label="Guide sections"><strong>CONTENTS</strong><a href="#guide-model" data-section="guide-model">threat model</a><a href="#guide-post" data-section="guide-post">posting rules</a><a href="#guide-network" data-section="guide-network">network model</a><a href="#guide-retention" data-section="guide-retention">retention</a><a href="#guide-removal" data-section="guide-removal">correction + removal</a><a href="#guide-crisis" data-section="guide-crisis">urgent support</a></nav>
+        <article class="prose">
+          <section id="guide-model" tabindex="-1"><h3>Threat model</h3><p>The useful unit is a conduct warning linked to a minimum viable partial marker—not a public dossier or universal rating. Combined details can still identify people, so minimization must account for the whole report.</p><ul><li>No legal names, faces, exact addresses, full numbers, IDs, or active locations.</li><li>No bulk export, public indexing, global identity graph, or ad network.</li><li>Search favors explicit partial markers instead of narrative mining.</li><li>Positive notes cannot negate independent warnings.</li></ul></section>
+          <section id="guide-post" tabindex="-1"><h3>Posting rules</h3><ol><li>Share only what another worker needs for a screening or safety decision.</li><li>Separate observed behavior from inference or identity speculation.</li><li>Never identify another worker without clear, revocable consent.</li><li>High-risk reports require human review in a real deployment.</li><li>Retaliatory, discriminatory, promotional, or intentionally false reports are removed.</li></ol></section>
+          <section id="guide-network" tabindex="-1"><h3>Network model <span class="concept-label">SINGLE NODE / PARTIALLY IMPLEMENTED</span></h3><pre>worker device  →  privacy-checked draft  →  local community node
+community node →  receipt + lifecycle log  →  minimized bulletin
+reporter holds →  private revocation receipt (this browser)
+
+NO PUBLIC API  ·  NO BULK EXPORT  ·  NO UNIVERSAL SCORE</pre><p>This build implements a real single community node: a zero-dependency Node + SQLite backend enforces the privacy checks and 90-day retention server-side, mints a one-time revocation receipt per report, and records lifecycle actions. It does <strong>not</strong> yet implement end-to-end encryption, federation or peer mirroring, pseudonymous authentication, or human moderation and appeals. A multi-node production system also needs protocol design, governance, legal analysis, device security, and adversarial testing.</p></section>
+          <section id="guide-retention" tabindex="-1"><h3>Retention</h3><p>The demo models a 90-day expiry for locally created reports. Expiry removes the local demo record when the browser next loads. A production policy must define what can renew a report, how emergency deletion propagates, and what minimal audit evidence remains.</p></section>
+          <section id="guide-removal" tabindex="-1"><h3>Correction, contest, revocation, and emergency unpublish</h3><p>These are separate actions. A correction does not increase corroboration. A reporter needs a private recovery receipt to edit or revoke their report. A subject needs a privacy-preserving contest channel. Emergency unpublishing should propagate before an appeal is resolved.</p><table class="process-table"><thead><tr><th>action</th><th>effect</th><th>demo behavior</th></tr></thead><tbody><tr><td>correct</td><td>request factual revision</td><td>local pending flag</td></tr><tr><td>contest</td><td>challenge accuracy or process</td><td>local disputed flag</td></tr><tr><td>revoke</td><td>reporter withdraws report</td><td>deletes local report only</td></tr><tr><td>emergency unpublish</td><td>hide while safety review occurs</td><td>simulated pending flag</td></tr></tbody></table></section>
+          <section id="guide-crisis" tabindex="-1"><h3>Urgent support</h3><p>LilithList is not emergency dispatch and should not imply that police contact is safe, wanted, or available. Production nodes should maintain community-governed mutual-aid and crisis resources, show the last verification date, and never infer a worker’s location without explicit consent.</p></section>
+        </article>
+      </div>
+    </section>
+  </main>
+
+  <dialog id="threadDialog" aria-labelledby="threadDialogTitle"><div class="dialog-head"><h2 id="threadDialogTitle">BULLETIN DETAIL</h2><button type="button" data-close-dialog="threadDialog">[ close ]</button></div><div class="dialog-body" id="threadBody"></div></dialog>
+
+  <dialog id="reviewDialog" aria-labelledby="reviewHeading"><div class="dialog-head"><h2 id="reviewHeading">REVIEW BEFORE SAVING</h2><button type="button" data-close-dialog="reviewDialog">[ close ]</button></div><div class="dialog-body" id="reviewBody"></div></dialog>
+
+  <dialog id="dataDialog" aria-labelledby="dataHeading"><div class="dialog-head"><h2 id="dataHeading">LOCAL RECEIPTS</h2><button type="button" data-close-dialog="dataDialog">[ close ]</button></div><div class="dialog-body"><div class="warning-box" data-testid="data-storage-warning"><strong>RECEIPTS ARE HELD IN THIS BROWSER</strong><p>Each receipt is the only key that can revoke its bulletin. They are stored unencrypted in this browser profile and are not recoverable if lost. Published bulletins live on the node, not here.</p></div><div id="localDataList"></div><div class="danger-zone"><h3>danger zone</h3><p>This clears local receipts only. Published bulletins stay on the node unless revoked individually above.</p><button type="button" class="button button--danger" data-action="erase-all">clear all local receipts</button></div></div></dialog>
+
+  <dialog id="confirmDialog" aria-labelledby="confirmHeading"><div class="dialog-head"><h2 id="confirmHeading">CONFIRM ACTION</h2><button type="button" data-close-dialog="confirmDialog">[ close ]</button></div><div class="dialog-body" id="confirmBody"></div></dialog>
+
+  <div class="toast" id="toast" role="status" aria-live="polite" hidden><span id="toastText"></span><button type="button" aria-label="Dismiss notification">×</button></div>
+
+  <footer><div class="shell footer-inner"><p><strong>LILITHLIST / PRODUCT PROTOTYPE.</strong> Fictional data only. Runs on a local single-node backend. No end-to-end encryption, federation, or anonymity is implemented.</p><p>plain HTML / CSS / JS · Node + SQLite<br>zero dependencies · local community node</p></div></footer>
+</body>
+</html>

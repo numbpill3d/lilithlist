@@ -1,0 +1,6 @@
+data/
+node_modules/
+tests/
+*.log
+mobile.png
+index-v1.html

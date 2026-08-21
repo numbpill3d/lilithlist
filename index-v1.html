@@ -1,0 +1,541 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="LilithList — a privacy-first peer safety bulletin prototype.">
+  <title>LilithList // peer safety board</title>
+  <style>
+    :root {
+      --paper: #f3f0e8;
+      --ink: #171516;
+      --muted: #625d5f;
+      --line: #aaa2a2;
+      --soft: #ded8d1;
+      --accent: #6d1742;
+      --accent-2: #37091f;
+      --wash: #eadbe3;
+      --danger: #a21f24;
+      --warning: #765600;
+      --safe: #285d40;
+      --link: #0000a8;
+      --white: #fffefa;
+      --mono: "Courier New", Courier, monospace;
+      --sans: Arial, Helvetica, sans-serif;
+      --serif: Georgia, "Times New Roman", serif;
+      --max: 1120px;
+    }
+
+    * { box-sizing: border-box; }
+    html { color-scheme: light; scroll-behavior: smooth; }
+    body {
+      margin: 0;
+      background: var(--paper);
+      color: var(--ink);
+      font: 14px/1.4 var(--sans);
+    }
+    button, input, select, textarea { font: inherit; }
+    a { color: var(--link); text-decoration: underline; text-underline-offset: 2px; }
+    a:hover { color: var(--danger); }
+    :focus-visible { outline: 3px solid #ffbf00; outline-offset: 2px; }
+    .skip { position: absolute; left: -999px; top: 4px; padding: 8px; background: #fff; z-index: 99; }
+    .skip:focus { left: 4px; }
+
+    .utility {
+      border-bottom: 1px solid var(--ink);
+      background: var(--accent-2);
+      color: #fff;
+      font: 11px/1.2 var(--mono);
+      letter-spacing: .02em;
+    }
+    .utility__inner, .site-head, .nav__inner, main, .footer__inner { max-width: var(--max); margin: auto; }
+    .utility__inner { min-height: 27px; display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 4px 12px; }
+    .utility a { color: #fff; }
+    .status-dot { width: 7px; height: 7px; display: inline-block; background: #79ff96; border: 1px solid #102b15; margin-right: 5px; }
+
+    .site-head { display: grid; grid-template-columns: 1fr auto; gap: 24px; align-items: end; padding: 18px 12px 14px; }
+    .brand { display: flex; align-items: baseline; gap: 13px; flex-wrap: wrap; }
+    .brand__name { margin: 0; color: var(--accent-2); font: bold clamp(31px, 6vw, 54px)/.9 var(--serif); letter-spacing: -.06em; }
+    .brand__tag { color: var(--muted); font: 12px var(--mono); }
+    .head-meta { text-align: right; color: var(--muted); font: 11px/1.5 var(--mono); }
+
+    .nav { border-block: 2px solid var(--ink); background: var(--soft); }
+    .nav__inner { display: flex; align-items: stretch; padding: 0 12px; overflow-x: auto; }
+    .nav button {
+      border: 0; border-right: 1px solid var(--ink); background: transparent; color: var(--ink);
+      padding: 9px 14px; min-height: 40px; cursor: pointer; font-weight: bold; white-space: nowrap;
+    }
+    .nav button:first-child { border-left: 1px solid var(--ink); }
+    .nav button:hover, .nav button[aria-current="page"] { background: var(--accent); color: #fff; text-decoration: underline; }
+    .nav .post-link { margin-left: auto; background: #fff; color: var(--accent-2); }
+
+    main { padding: 18px 12px 54px; min-height: 70vh; }
+    .view[hidden] { display: none; }
+    .notice {
+      display: grid; grid-template-columns: auto 1fr auto; gap: 12px; align-items: start;
+      padding: 10px 12px; margin-bottom: 17px; border: 1px solid var(--accent-2); border-left-width: 7px; background: var(--wash);
+    }
+    .notice strong { font: bold 12px var(--mono); text-transform: uppercase; }
+    .notice p { margin: 0; }
+    .notice button { border: 0; background: transparent; text-decoration: underline; cursor: pointer; color: var(--accent-2); }
+
+    .layout { display: grid; grid-template-columns: minmax(0, 1fr) 238px; gap: 22px; }
+    .section-head { display: flex; justify-content: space-between; align-items: baseline; gap: 16px; border-bottom: 3px double var(--ink); margin-bottom: 8px; }
+    .section-head h2 { margin: 0 0 5px; font: bold 22px/1 var(--serif); }
+    .section-head small { color: var(--muted); font: 11px var(--mono); }
+
+    .filterbar { display: grid; grid-template-columns: minmax(150px, 1fr) repeat(2, minmax(105px, .45fr)) auto; gap: 6px; margin: 10px 0 9px; }
+    input, select, textarea { border: 1px solid #5d5858; border-radius: 0; background: var(--white); color: var(--ink); padding: 7px 8px; }
+    input, select { min-height: 36px; }
+    textarea { resize: vertical; min-height: 94px; }
+    .btn { border: 1px solid var(--ink); border-radius: 0; background: #e6e1db; color: var(--ink); min-height: 36px; padding: 7px 11px; font-weight: bold; cursor: pointer; box-shadow: 2px 2px 0 var(--ink); }
+    .btn:hover { background: #fff; }
+    .btn:active { transform: translate(2px, 2px); box-shadow: none; }
+    .btn--primary { background: var(--accent); color: #fff; }
+    .btn--danger { background: var(--danger); color: #fff; }
+    .btn--plain { box-shadow: none; background: transparent; }
+
+    .board { border-top: 1px solid var(--ink); }
+    .row {
+      display: grid; grid-template-columns: 58px minmax(0, 1fr) 118px 78px; gap: 10px; align-items: center;
+      border-bottom: 1px solid var(--line); padding: 9px 4px;
+    }
+    .row:hover { background: #fffdf5; }
+    .row--head { padding-block: 5px; background: var(--soft); border-color: var(--ink); color: #413d3d; font: bold 10px var(--mono); text-transform: uppercase; }
+    .risk { width: 48px; padding: 3px 4px; border: 1px solid currentColor; text-align: center; font: bold 10px var(--mono); text-transform: uppercase; }
+    .risk--high { color: var(--danger); background: #f6d9d7; }
+    .risk--med { color: var(--warning); background: #f5ebc9; }
+    .risk--info { color: #345786; background: #dce6f1; }
+    .risk--safe { color: var(--safe); background: #dceade; }
+    .thread-title { display: inline; padding: 0; border: 0; background: none; color: var(--link); text-align: left; text-decoration: underline; cursor: pointer; font-weight: bold; }
+    .thread-meta { color: var(--muted); font: 11px var(--mono); margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .row__region, .row__time { color: #4e494b; font: 11px/1.35 var(--mono); }
+    .empty { padding: 32px 8px; border-bottom: 1px solid var(--ink); color: var(--muted); text-align: center; font-family: var(--mono); }
+
+    .sidebar section { border: 1px solid var(--ink); margin-bottom: 13px; background: #ebe7df; }
+    .sidebar h3 { margin: 0; padding: 6px 8px; background: var(--accent-2); color: white; font: bold 12px var(--mono); }
+    .sidebar ul { list-style: square; margin: 8px 8px 10px; padding-left: 18px; }
+    .sidebar li { margin: 6px 0; }
+    .sidebar p { margin: 8px; font-size: 12px; }
+    .stats { width: calc(100% - 16px); margin: 7px 8px 10px; border-collapse: collapse; font: 11px var(--mono); }
+    .stats td { border-bottom: 1px dotted var(--line); padding: 4px 0; }
+    .stats td:last-child { text-align: right; font-weight: bold; }
+
+    .legend { display: flex; flex-wrap: wrap; gap: 8px 12px; margin: 10px 0 0; font: 10px var(--mono); color: var(--muted); }
+    .legend span::before { content: ""; display: inline-block; width: 8px; height: 8px; margin-right: 4px; border: 1px solid; }
+    .legend .l-high::before { background: #f6d9d7; color: var(--danger); }
+    .legend .l-med::before { background: #f5ebc9; color: var(--warning); }
+    .legend .l-info::before { background: #dce6f1; color: #345786; }
+    .legend .l-safe::before { background: #dceade; color: var(--safe); }
+
+    .page-title { border-bottom: 3px double var(--ink); margin-bottom: 15px; }
+    .page-title h2 { margin: 0; font: bold 27px var(--serif); }
+    .page-title p { margin: 3px 0 9px; color: var(--muted); }
+    .search-big { display: grid; grid-template-columns: 1fr auto; gap: 6px; max-width: 790px; }
+    .search-big input { min-height: 46px; font: 16px var(--mono); }
+    .help-box { max-width: 790px; margin-top: 13px; padding: 10px; border: 1px dashed var(--muted); background: #ebe7df; font: 12px/1.5 var(--mono); }
+
+    .form-shell { max-width: 800px; }
+    .form-step { border: 1px solid var(--ink); margin-bottom: 12px; background: #ebe7df; }
+    .form-step h3 { margin: 0; padding: 7px 9px; border-bottom: 1px solid var(--ink); background: var(--soft); font: bold 13px var(--mono); }
+    .form-body { padding: 12px; }
+    .field-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 11px; }
+    label { display: grid; gap: 4px; color: #373234; font: bold 11px var(--mono); text-transform: uppercase; }
+    label.full { grid-column: 1 / -1; }
+    .hint { display: block; color: var(--muted); font: normal 10px/1.35 var(--mono); text-transform: none; }
+    .checks { display: grid; grid-template-columns: repeat(2, 1fr); gap: 7px; }
+    .checks label { display: flex; align-items: start; gap: 7px; font: 12px var(--sans); text-transform: none; }
+    .checks input { min-height: 0; accent-color: var(--accent); }
+    .form-actions { display: flex; gap: 9px; justify-content: flex-end; padding-top: 5px; }
+    .privacy-lock { border: 1px solid var(--safe); background: #e3eee5; color: #173c29; padding: 9px; margin-bottom: 13px; font: 11px/1.45 var(--mono); }
+
+    .guide-grid { display: grid; grid-template-columns: 190px minmax(0, 1fr); gap: 24px; }
+    .toc { position: sticky; top: 10px; align-self: start; border: 1px solid var(--ink); padding: 9px; background: var(--soft); }
+    .toc strong { font: bold 11px var(--mono); }
+    .toc a { display: block; margin-top: 7px; font-size: 12px; }
+    .prose { max-width: 750px; }
+    .prose h3 { margin-top: 24px; border-bottom: 1px solid var(--ink); font: bold 19px var(--serif); }
+    .prose li { margin-bottom: 7px; }
+    .code { border: 1px solid var(--line); background: #e7e3dc; padding: 9px; font: 11px/1.5 var(--mono); overflow-x: auto; }
+
+    dialog { width: min(720px, calc(100% - 22px)); max-height: calc(100vh - 30px); padding: 0; border: 2px solid var(--ink); border-radius: 0; background: var(--paper); color: var(--ink); box-shadow: 9px 9px 0 rgba(0,0,0,.45); }
+    dialog::backdrop { background: rgba(32, 7, 20, .68); }
+    .modal-head { display: flex; justify-content: space-between; gap: 10px; padding: 8px 10px; background: var(--accent-2); color: #fff; }
+    .modal-head h2 { margin: 0; font: bold 14px var(--mono); }
+    .modal-head button { border: 1px solid white; background: transparent; color: white; cursor: pointer; }
+    .modal-body { padding: 15px; overflow-y: auto; max-height: calc(100vh - 90px); }
+    .detail-grid { display: grid; grid-template-columns: 130px 1fr; border: 1px solid var(--line); }
+    .detail-grid dt, .detail-grid dd { margin: 0; padding: 7px; border-bottom: 1px dotted var(--line); }
+    .detail-grid dt { background: var(--soft); font: bold 10px var(--mono); text-transform: uppercase; }
+    .detail-grid dd { font: 12px var(--mono); overflow-wrap: anywhere; }
+    .report-copy { margin: 15px 0; padding: 12px; border: 1px solid var(--ink); background: var(--white); white-space: pre-line; }
+    .corroboration { border-top: 3px double var(--ink); padding-top: 11px; }
+    .corroboration h3 { margin: 0 0 7px; font: bold 15px var(--serif); }
+    .inline-form { display: grid; grid-template-columns: 1fr auto; gap: 6px; }
+
+    .toast { position: fixed; right: 14px; bottom: 14px; max-width: 350px; border: 2px solid var(--ink); background: #fff; padding: 10px 13px; box-shadow: 4px 4px 0 var(--ink); font: 12px var(--mono); z-index: 100; }
+    .toast[hidden] { display: none; }
+
+    footer { border-top: 2px solid var(--ink); background: var(--soft); }
+    .footer__inner { padding: 18px 12px 24px; display: grid; grid-template-columns: 1fr auto; gap: 20px; color: #4d484a; font: 11px/1.55 var(--mono); }
+    footer p { margin: 0; max-width: 720px; }
+
+    @media (max-width: 760px) {
+      .site-head { grid-template-columns: 1fr; }
+      .head-meta { text-align: left; }
+      .nav__inner { padding: 0; }
+      .nav .post-link { margin-left: 0; }
+      .layout, .guide-grid { grid-template-columns: 1fr; }
+      .sidebar { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; }
+      .sidebar section { margin: 0; }
+      .toc { position: static; }
+      .filterbar { grid-template-columns: 1fr 1fr; }
+      .filterbar input { grid-column: 1 / -1; }
+      .row { grid-template-columns: 52px minmax(0, 1fr) 70px; }
+      .row__region { display: none; }
+      .field-grid { grid-template-columns: 1fr; }
+      label.full { grid-column: auto; }
+    }
+    @media (max-width: 480px) {
+      .utility__inner { align-items: start; flex-direction: column; padding-block: 6px; }
+      .brand__tag { width: 100%; }
+      .nav button { padding-inline: 11px; }
+      .notice { grid-template-columns: 1fr; }
+      .sidebar { grid-template-columns: 1fr; }
+      .row { grid-template-columns: 48px minmax(0, 1fr); }
+      .row__time, .row--head .row__time { display: none; }
+      .search-big, .inline-form { grid-template-columns: 1fr; }
+      .checks { grid-template-columns: 1fr; }
+      .footer__inner { grid-template-columns: 1fr; }
+      .detail-grid { grid-template-columns: 100px 1fr; }
+    }
+    @media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } }
+  </style>
+</head>
+<body>
+  <a class="skip" href="#content">skip to content</a>
+  <div class="utility">
+    <div class="utility__inner">
+      <span><span class="status-dot"></span>mirror 04 online · peer-synced 00:03 ago</span>
+      <span>no account · no tracking · <a href="#guide" data-route="guide">safety protocol</a></span>
+    </div>
+  </div>
+
+  <header class="site-head">
+    <div class="brand">
+      <h1 class="brand__name">lilithlist</h1>
+      <span class="brand__tag">// worker-to-worker safety bulletin</span>
+    </div>
+    <div class="head-meta">LOCAL NODE: LL-04 / onion-ready<br>PROTOTYPE BUILD 0.1 · MOCK DATA ONLY</div>
+  </header>
+
+  <nav class="nav" aria-label="Primary">
+    <div class="nav__inner">
+      <button data-route="board" aria-current="page">bulletin</button>
+      <button data-route="search">lookup</button>
+      <button data-route="guide">how it works</button>
+      <button class="post-link" data-route="report">+ file safety report</button>
+    </div>
+  </nav>
+
+  <main id="content">
+    <section class="view" id="view-board" data-view="board">
+      <div class="notice" id="prototypeNotice">
+        <strong>prototype</strong>
+        <p>This is a local, fictional interface study—not a live database. Names, fragments, and reports below are invented and deliberately non-identifying.</p>
+        <button type="button" aria-label="Dismiss notice">dismiss</button>
+      </div>
+      <div class="layout">
+        <div>
+          <div class="section-head">
+            <h2>recent bulletins</h2>
+            <small id="resultCount">0 posts</small>
+          </div>
+          <div class="filterbar" aria-label="Filter bulletins">
+            <input id="boardQuery" type="search" placeholder="search phone fragment, handle, venue…" aria-label="Search posts">
+            <select id="regionFilter" aria-label="Filter by region">
+              <option value="all">all regions</option>
+              <option value="northeast">northeast</option>
+              <option value="midwest">midwest</option>
+              <option value="south">south</option>
+              <option value="west">west</option>
+              <option value="online">online / remote</option>
+            </select>
+            <select id="riskFilter" aria-label="Filter by level">
+              <option value="all">all levels</option>
+              <option value="high">high risk</option>
+              <option value="medium">caution</option>
+              <option value="info">information</option>
+              <option value="safe">positive note</option>
+            </select>
+            <button class="btn" id="clearFilters" type="button">clear</button>
+          </div>
+          <div class="board" id="boardList" role="list">
+            <div class="row row--head" aria-hidden="true"><span>level</span><span>subject / report</span><span>region</span><span>updated</span></div>
+          </div>
+          <div class="legend" aria-label="Safety level legend">
+            <span class="l-high">high risk</span><span class="l-med">caution</span><span class="l-info">information</span><span class="l-safe">positive note</span>
+          </div>
+        </div>
+
+        <aside class="sidebar" aria-label="Board information">
+          <section>
+            <h3>BOARD STATUS</h3>
+            <table class="stats"><tbody>
+              <tr><td>active mirrors</td><td>4</td></tr>
+              <tr><td>pending review</td><td>7</td></tr>
+              <tr><td>last sync</td><td>00:03</td></tr>
+              <tr><td>retention</td><td>90d</td></tr>
+            </tbody></table>
+          </section>
+          <section>
+            <h3>BEFORE YOU POST</h3>
+            <ul>
+              <li>Remove names, faces, addresses, plates.</li>
+              <li>Use partial identifiers only.</li>
+              <li>Describe conduct, not identity.</li>
+              <li>Do not post active locations.</li>
+            </ul>
+          </section>
+          <section>
+            <h3>QUICK LINKS</h3>
+            <ul>
+              <li><a href="#report" data-route="report">file a report</a></li>
+              <li><a href="#guide" data-route="guide">privacy checklist</a></li>
+              <li><a href="#guide-removal" data-route="guide">request correction</a></li>
+              <li><a href="#guide-crisis" data-route="guide">urgent resources</a></li>
+            </ul>
+          </section>
+        </aside>
+      </div>
+    </section>
+
+    <section class="view" id="view-search" data-view="search" hidden>
+      <div class="page-title"><h2>lookup</h2><p>Check a partial identifier against safety bulletins without creating an account.</p></div>
+      <form id="lookupForm" class="search-big">
+        <input id="lookupQuery" autocomplete="off" placeholder="e.g. phone ending 4421, @handle, hotel alias" aria-label="Identifier to look up">
+        <button class="btn btn--primary" type="submit">search local mirror</button>
+      </form>
+      <div class="help-box">QUERY HYGIENE: use the minimum information needed. Do not paste a full phone number, legal name, address, private message log, payment identifier, or photograph. Searches in this prototype stay in your browser.</div>
+      <div style="margin-top:22px; max-width:900px">
+        <div class="section-head"><h2>matches</h2><small id="lookupCount">enter a partial identifier</small></div>
+        <div class="board" id="lookupList"><div class="row row--head" aria-hidden="true"><span>level</span><span>subject / report</span><span>region</span><span>updated</span></div></div>
+      </div>
+    </section>
+
+    <section class="view" id="view-report" data-view="report" hidden>
+      <div class="page-title"><h2>file a safety report</h2><p>Share the smallest useful warning. All fields in this prototype are stored only in this browser.</p></div>
+      <div class="form-shell">
+        <div class="privacy-lock"><strong>PRIVACY GATE:</strong> do not include full names, full numbers, exact addresses, government IDs, faces, plates, or a worker’s active location. Reports should document behavior and use partial, non-unique identifiers.</div>
+        <form id="reportForm">
+          <section class="form-step">
+            <h3>01 / CLASSIFY</h3>
+            <div class="form-body field-grid">
+              <label>Safety level
+                <select name="risk" required><option value="">choose…</option><option value="high">high risk / immediate concern</option><option value="medium">caution / boundary issue</option><option value="info">information / verification</option><option value="safe">positive safety note</option></select>
+              </label>
+              <label>Broad region
+                <select name="region" required><option value="">choose…</option><option>northeast</option><option>midwest</option><option>south</option><option>west</option><option>online</option></select>
+                <span class="hint">Never post a current or exact location.</span>
+              </label>
+            </div>
+          </section>
+          <section class="form-step">
+            <h3>02 / MINIMUM IDENTIFIER</h3>
+            <div class="form-body field-grid">
+              <label>Identifier type
+                <select name="idType" required><option value="">choose…</option><option>phone fragment</option><option>platform handle fragment</option><option>email fragment</option><option>venue / hotel alias</option><option>vehicle description</option><option>other non-unique marker</option></select>
+              </label>
+              <label>Partial identifier
+                <input name="identifier" maxlength="32" required placeholder="e.g. phone ending 4421">
+                <span class="hint">Maximum 32 characters. Keep it partial.</span>
+              </label>
+              <label class="full">Bulletin title
+                <input name="title" maxlength="90" required placeholder="Short, factual description of the concern">
+              </label>
+            </div>
+          </section>
+          <section class="form-step">
+            <h3>03 / WHAT HAPPENED</h3>
+            <div class="form-body field-grid">
+              <label class="full">Behavior observed
+                <textarea name="details" maxlength="1200" required placeholder="Describe actions, boundaries, and relevant sequence. Avoid identity speculation and unnecessary personal details."></textarea>
+                <span class="hint"><span id="charCount">0</span>/1200 characters</span>
+              </label>
+              <label>Approximate date
+                <input name="date" type="month" required>
+              </label>
+              <label>Context
+                <select name="context" required><option value="">choose…</option><option>screening / booking</option><option>in-person appointment</option><option>online session</option><option>payment / chargeback</option><option>transport / venue</option><option>other</option></select>
+              </label>
+              <div class="full checks" aria-label="Observed behaviors">
+                <label><input type="checkbox" name="tags" value="boundary pushing">boundary pushing</label>
+                <label><input type="checkbox" name="tags" value="payment issue">payment issue</label>
+                <label><input type="checkbox" name="tags" value="threat / intimidation">threat / intimidation</label>
+                <label><input type="checkbox" name="tags" value="surveillance concern">surveillance concern</label>
+                <label><input type="checkbox" name="tags" value="identity mismatch">identity mismatch</label>
+                <label><input type="checkbox" name="tags" value="positive screening">positive screening</label>
+              </div>
+            </div>
+          </section>
+          <section class="form-step">
+            <h3>04 / CONSENT + REVIEW</h3>
+            <div class="form-body">
+              <div class="checks" style="grid-template-columns:1fr">
+                <label><input type="checkbox" required> I removed direct identifying information and active locations.</label>
+                <label><input type="checkbox" required> This report describes conduct I directly experienced or can accurately corroborate.</label>
+                <label><input type="checkbox" required> I understand this prototype creates a local demo entry only.</label>
+              </div>
+            </div>
+          </section>
+          <div class="form-actions"><button type="reset" class="btn">reset</button><button type="submit" class="btn btn--primary">preview + publish locally</button></div>
+        </form>
+      </div>
+    </section>
+
+    <section class="view" id="view-guide" data-view="guide" hidden>
+      <div class="page-title"><h2>how lilithlist works</h2><p>A product model for peer warning with minimization, correction, and due-process safeguards built in.</p></div>
+      <div class="guide-grid">
+        <nav class="toc" aria-label="Guide sections"><strong>CONTENTS</strong><a href="#guide-model">threat model</a><a href="#guide-post">posting rules</a><a href="#guide-network">network model</a><a href="#guide-removal">correction + removal</a><a href="#guide-crisis">urgent situations</a></nav>
+        <article class="prose">
+          <h3 id="guide-model">Threat model</h3>
+          <p>LilithList is designed around a simple premise: the board should not become a second source of danger. The useful unit is a conduct warning linked to a partial identifier—not a public dossier on a person.</p>
+          <ul><li>No legal names, faces, exact addresses, full phone numbers, IDs, or precise live locations.</li><li>Reports expire by default and must be renewed through corroboration.</li><li>Search is exact-fragment oriented; bulk browsing and indexing are discouraged.</li><li>Workers choose what local node to trust. No global identity graph is required.</li></ul>
+          <h3 id="guide-post">Posting rules</h3>
+          <ol><li>Share only what another worker needs to make a screening or safety decision.</li><li>Separate observed behavior from inference. Use dates broadly.</li><li>Never identify another worker without clear, revocable consent.</li><li>High-risk flags need peer review; positive notes cannot erase warnings.</li><li>False, retaliatory, discriminatory, or promotional posts are removed.</li></ol>
+          <h3 id="guide-network">Network model (concept)</h3>
+          <div class="code">worker device → encrypted draft → trusted local node<br>trusted node → moderation receipt → signed, minimized bulletin<br>signed bulletin ↔ selected peer mirrors<br><br>NO central profile · NO ad network · NO public API · NO bulk export</div>
+          <p>The interface here is a front-end concept. A real deployment would need end-to-end encryption, device security review, legal analysis by jurisdiction, abuse-resistant moderation, independent security testing, and a carefully governed federation protocol.</p>
+          <h3 id="guide-removal">Correction + removal</h3>
+          <p>Every bulletin should carry a stable receipt. A reporter can correct or revoke it. A subject can contest inaccurate information through a privacy-preserving channel. Nodes show dispute state and moderation history without exposing the parties. Emergency unpublishing propagates before the appeal is resolved.</p>
+          <h3 id="guide-crisis">Urgent situations</h3>
+          <p>This board is not emergency dispatch. If someone is in immediate danger, use the safest trusted local resource available to them. Product copy should never assume police contact is safe, wanted, or available. A production build should let each community node maintain its own verified crisis and mutual-aid directory.</p>
+        </article>
+      </div>
+    </section>
+  </main>
+
+  <dialog id="threadDialog" aria-labelledby="threadDialogTitle">
+    <div class="modal-head"><h2 id="threadDialogTitle">BULLETIN DETAIL</h2><button type="button" id="closeDialog">[ close ]</button></div>
+    <div class="modal-body" id="threadBody"></div>
+  </dialog>
+
+  <div class="toast" id="toast" role="status" hidden></div>
+
+  <footer>
+    <div class="footer__inner">
+      <p><strong>LILITHLIST / FRONT-END CONCEPT.</strong> Fictional data only. A real service handling safety allegations requires specialist legal, security, privacy, moderation, and survivor-centered governance work before any deployment.</p>
+      <p>HTML / CSS / JS<br>no cookies · local demo storage</p>
+    </div>
+  </footer>
+
+  <script>
+    (() => {
+      'use strict';
+      const seedReports = [
+        {id:'LL-7A3F', risk:'high', title:'Threat after screening request was declined', identifier:'handle begins r0am…', region:'northeast', time:'18 min', date:'2026-08', context:'screening / booking', tags:['threat / intimidation','identity mismatch'], replies:4, details:'Contact became aggressive after a routine reference request. They used two different first names and sent repeated messages from a second account after being blocked. No appointment took place.'},
+        {id:'LL-19C2', risk:'medium', title:'Repeated attempt to change agreed boundaries', identifier:'phone ending 4421', region:'west', time:'1 hr', date:'2026-08', context:'in-person appointment', tags:['boundary pushing'], replies:7, details:'Terms were confirmed in writing. During the appointment, the client repeatedly attempted to renegotiate a clearly stated boundary and became verbally hostile when the session ended early.'},
+        {id:'LL-A011', risk:'info', title:'Possible duplicate account — verify references carefully', identifier:'profile includes “traveler77”', region:'online', time:'3 hr', date:'2026-08', context:'screening / booking', tags:['identity mismatch'], replies:2, details:'Two profiles used near-identical copy but supplied conflicting reference histories. No direct threat occurred. Posting so others can independently verify before accepting.'},
+        {id:'LL-6E20', risk:'medium', title:'Payment reversal pattern reported by two peers', identifier:'email fragment k…@proton', region:'south', time:'yesterday', date:'2026-07', context:'payment / chargeback', tags:['payment issue'], replies:5, details:'A payment was reversed after delivery. A peer independently described the same pattern using the same partial email marker. Keep records and use your normal payment precautions.'},
+        {id:'LL-C88B', risk:'safe', title:'Clear communication and respectful cancellation', identifier:'phone ending 0903', region:'midwest', time:'2 days', date:'2026-07', context:'screening / booking', tags:['positive screening'], replies:1, details:'Completed screening without pressure, then cancelled with adequate notice and honored the agreed cancellation policy. Positive note only; this does not override any separate warning.'},
+        {id:'LL-37DD', risk:'high', title:'Concern about recording device in shared space', identifier:'venue alias “blue suite”', region:'northeast', time:'3 days', date:'2026-07', context:'transport / venue', tags:['surveillance concern'], replies:9, details:'An unfamiliar device was found positioned toward the meeting area. The session did not proceed. Venue management was notified without identifying the worker.'},
+        {id:'LL-F104', risk:'info', title:'Hotel alias changed after initial booking', identifier:'booking alias starts M—', region:'west', time:'5 days', date:'2026-07', context:'transport / venue', tags:['identity mismatch'], replies:0, details:'The reservation alias changed between confirmation and arrival. No incident occurred, but the mismatch was not explained. Verify independently if the marker appears.'}
+      ];
+
+      const els = {
+        views: [...document.querySelectorAll('[data-view]')],
+        routes: [...document.querySelectorAll('[data-route]')],
+        board: document.querySelector('#boardList'), lookup: document.querySelector('#lookupList'),
+        boardQuery: document.querySelector('#boardQuery'), region: document.querySelector('#regionFilter'), risk: document.querySelector('#riskFilter'),
+        resultCount: document.querySelector('#resultCount'), lookupCount: document.querySelector('#lookupCount'),
+        dialog: document.querySelector('#threadDialog'), threadBody: document.querySelector('#threadBody'), toast: document.querySelector('#toast')
+      };
+      let reports = [...seedReports, ...readLocalReports()];
+      let toastTimer;
+
+      function readLocalReports() {
+        try { return JSON.parse(localStorage.getItem('lilithlist-demo-reports') || '[]'); }
+        catch { return []; }
+      }
+      function esc(value='') { const node = document.createElement('span'); node.textContent = value; return node.innerHTML; }
+      function riskLabel(risk) { return ({high:'high', medium:'caution', info:'info', safe:'positive'})[risk] || 'info'; }
+      function rowMarkup(r) {
+        return `<article class="row" role="listitem">
+          <span class="risk risk--${esc(r.risk)}">${riskLabel(r.risk)}</span>
+          <div><button class="thread-title" data-thread="${esc(r.id)}">${esc(r.title)}</button><div class="thread-meta">${esc(r.identifier)} · ${r.replies || 0} corroboration${(r.replies || 0) === 1 ? '' : 's'} · ${esc(r.id)}</div></div>
+          <span class="row__region">${esc(r.region)}</span><span class="row__time">${esc(r.time)}</span>
+        </article>`;
+      }
+      function renderInto(container, list, emptyText) {
+        const head = '<div class="row row--head" aria-hidden="true"><span>level</span><span>subject / report</span><span>region</span><span>updated</span></div>';
+        container.innerHTML = head + (list.length ? list.map(rowMarkup).join('') : `<div class="empty">${esc(emptyText)}</div>`);
+      }
+      function renderBoard() {
+        const q = els.boardQuery.value.trim().toLowerCase();
+        const list = reports.filter(r => (els.region.value === 'all' || r.region === els.region.value) && (els.risk.value === 'all' || r.risk === els.risk.value) && (!q || [r.title,r.identifier,r.region,r.details,...(r.tags || [])].join(' ').toLowerCase().includes(q)));
+        renderInto(els.board, list, 'no bulletins match these filters');
+        els.resultCount.textContent = `${list.length} post${list.length === 1 ? '' : 's'}`;
+      }
+      function navigate(route) {
+        const valid = ['board','search','report','guide'];
+        route = valid.includes(route) ? route : 'board';
+        els.views.forEach(v => v.hidden = v.dataset.view !== route);
+        document.querySelectorAll('.nav [data-route]').forEach(b => b.toggleAttribute('aria-current', b.dataset.route === route));
+        history.replaceState(null, '', `#${route}`);
+        document.title = `${route === 'board' ? 'LilithList' : route + ' — LilithList'} // peer safety board`;
+        window.scrollTo(0,0);
+        if (route === 'search') setTimeout(() => document.querySelector('#lookupQuery').focus(), 0);
+      }
+      function openThread(id) {
+        const r = reports.find(item => item.id === id); if (!r) return;
+        els.threadBody.innerHTML = `<div class="risk risk--${esc(r.risk)}" style="margin-bottom:9px">${riskLabel(r.risk)}</div>
+          <h2 style="font: bold 23px/1.15 var(--serif); margin:0 0 12px">${esc(r.title)}</h2>
+          <dl class="detail-grid"><dt>receipt</dt><dd>${esc(r.id)}</dd><dt>identifier</dt><dd>${esc(r.identifier)}</dd><dt>region</dt><dd>${esc(r.region)}</dd><dt>approx. date</dt><dd>${esc(r.date)}</dd><dt>context</dt><dd>${esc(r.context)}</dd><dt>markers</dt><dd>${esc((r.tags || []).join(' · ') || 'none supplied')}</dd></dl>
+          <div class="report-copy">${esc(r.details)}</div>
+          <div class="corroboration"><h3>peer corroboration (${r.replies || 0})</h3><p style="font-size:12px;color:var(--muted)">Do not add new identifying details. A corroboration means you independently recognize the behavioral pattern or partial marker.</p>
+          <form class="inline-form" data-corroborate="${esc(r.id)}"><select aria-label="Corroboration type" required><option value="">select response…</option><option>I experienced a similar pattern</option><option>I can verify the partial marker</option><option>I have a correction</option></select><button class="btn" type="submit">add locally</button></form></div>`;
+        els.dialog.showModal();
+      }
+      function showToast(message) {
+        clearTimeout(toastTimer); els.toast.textContent = message; els.toast.hidden = false;
+        toastTimer = setTimeout(() => els.toast.hidden = true, 4200);
+      }
+
+      els.routes.forEach(el => el.addEventListener('click', e => { e.preventDefault(); navigate(el.dataset.route); }));
+      [els.boardQuery, els.region, els.risk].forEach(el => el.addEventListener(el.tagName === 'INPUT' ? 'input' : 'change', renderBoard));
+      document.querySelector('#clearFilters').addEventListener('click', () => { els.boardQuery.value=''; els.region.value='all'; els.risk.value='all'; renderBoard(); });
+      document.querySelector('#prototypeNotice button').addEventListener('click', () => document.querySelector('#prototypeNotice').remove());
+      document.addEventListener('click', e => { const trigger = e.target.closest('[data-thread]'); if (trigger) openThread(trigger.dataset.thread); });
+      document.querySelector('#closeDialog').addEventListener('click', () => els.dialog.close());
+      els.dialog.addEventListener('click', e => { if (e.target === els.dialog) els.dialog.close(); });
+      els.dialog.addEventListener('submit', e => { if (!e.target.matches('[data-corroborate]')) return; e.preventDefault(); const r = reports.find(x => x.id === e.target.dataset.corroborate); r.replies = (r.replies || 0) + 1; els.dialog.close(); renderBoard(); showToast('Corroboration added to this browser demo.'); });
+
+      document.querySelector('#lookupForm').addEventListener('submit', e => {
+        e.preventDefault(); const q = document.querySelector('#lookupQuery').value.trim().toLowerCase();
+        if (q.length < 3) { showToast('Use at least 3 characters for a local lookup.'); return; }
+        const list = reports.filter(r => [r.identifier,r.title,r.details,...(r.tags || [])].join(' ').toLowerCase().includes(q));
+        renderInto(els.lookup, list, 'no exact-fragment matches on this mirror');
+        els.lookupCount.textContent = `${list.length} local match${list.length === 1 ? '' : 'es'}`;
+      });
+
+      const reportForm = document.querySelector('#reportForm');
+      const details = reportForm.elements.details;
+      details.addEventListener('input', () => document.querySelector('#charCount').textContent = details.value.length);
+      reportForm.addEventListener('reset', () => setTimeout(() => document.querySelector('#charCount').textContent = '0', 0));
+      reportForm.addEventListener('submit', e => {
+        e.preventDefault();
+        const fd = new FormData(reportForm); const identifier = String(fd.get('identifier') || '').trim();
+        const blocked = [/\b\d{7,}\b/, /\b\d{1,5}\s+[a-z]+\s+(st|street|ave|avenue|rd|road|blvd)\b/i];
+        if (blocked.some(rx => rx.test(identifier + ' ' + fd.get('details')))) { showToast('Privacy gate: remove full numbers or exact street addresses.'); return; }
+        const tags = fd.getAll('tags');
+        const item = {id:'LOCAL-' + Math.random().toString(16).slice(2,6).toUpperCase(), risk:fd.get('risk'), title:String(fd.get('title')).trim(), identifier, region:fd.get('region'), time:'now', date:fd.get('date'), context:fd.get('context'), tags, replies:0, details:String(fd.get('details')).trim()};
+        const local = readLocalReports(); local.unshift(item); localStorage.setItem('lilithlist-demo-reports', JSON.stringify(local)); reports.unshift(item);
+        reportForm.reset(); document.querySelector('#charCount').textContent='0'; renderBoard(); navigate('board'); showToast(`Local prototype report ${item.id} published to this browser only.`); setTimeout(() => openThread(item.id), 250);
+      });
+
+      window.addEventListener('hashchange', () => navigate(location.hash.slice(1)));
+      renderBoard(); navigate(location.hash.slice(1) || 'board');
+    })();
+  </script>
+</body>
+</html>
