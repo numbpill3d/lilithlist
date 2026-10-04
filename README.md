@@ -107,8 +107,9 @@ Key design decisions:
 
 > **Read this first.** LilithList serves a vulnerable audience. Running this node
 > for real users — not a demo — means you are responsible for people's safety data.
-> The node has **no end-to-end encryption, no anonymity, and no human moderation**
-> (see the production boundary below). At minimum, before onboarding real users you
+> The node has **no end-to-end encryption on clearnet and no standing moderation team**
+> (see the production boundary below and `docs/ANONYMITY.md` for the exact anonymity
+> model — anonymous over Tor, pseudonymous at best over clearnet). At minimum, before onboarding real users you
 > should put it behind HTTPS, control and trust your own proxy, take responsibility
 > for the database contents and local law, and have a moderation/removal process and
 > crisis resources ready. Launching the software is easy; launching a *safety service*
@@ -256,17 +257,22 @@ does not verify against the pinned key, so a peer cannot forge bulletins from a 
 
 ## Production boundary
 
-This build implements a working, moderated single node with optional encryption at rest.
+This build implements a working, moderated single node with optional encryption at rest
+and an explicit anonymity model (see `docs/ANONYMITY.md`).
 It still does **not** implement:
 
-- end-to-end (in-transit) encryption — TLS terminates at your reverse proxy; the node
-  sees plaintext in memory. (Run the node itself as a Tor onion service if you need to
-  remove that trust in the proxy and give reporters network-level anonymity.)
-- reporter anonymity beyond being account-less — IP-hash rate limiting is not anonymity;
-  put the node behind Tor/a privacy proxy if network-level anonymity matters to your users
+- end-to-end (in-transit) encryption on clearnet — TLS terminates at your reverse
+  proxy; the node sees plaintext in memory. Over Tor (onion service +
+  `LILITH_ONION_URL`) there is no exit node and no clearnet metadata, which is
+  the recommended configuration for sensitive communities.
 - automatic peer discovery, sybil resistance, or trust negotiation — federation trust is
   manual key-pinning between operators who already trust each other
 - jurisdiction-aware retention or independently verified crisis resources
+
+What anonymity **is** implemented: no accounts, receipt-hash-only reporter identity,
+zero request logging, memory-only salted IP-hash rate limits (forgotten on restart),
+zero third-party network (safe to load in Tor Browser), and `Onion-Location`
+advertising. Anonymous over Tor; pseudonymous at best over clearnet.
 
 The signed federation layer moves bulletins and their removals **between nodes**, but the
 software cannot supply the parts that are not code: survivor-centered governance,

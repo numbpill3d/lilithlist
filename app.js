@@ -561,6 +561,10 @@
     const n = document.getElementById('nodeId');
     if (v && meta.version) v.textContent = meta.version;
     if (n && meta.node) n.textContent = 'LL-' + String(meta.node).toUpperCase();
+    if (window.location.hostname.endsWith('.onion')) {
+      const c = document.getElementById('connType');
+      if (c) c.textContent = 'tor onion service';
+    }
   }).catch(() => {});
   const initial = currentRoute(); showRoute(initial.route, initial.section, { replace: true });
 })();
