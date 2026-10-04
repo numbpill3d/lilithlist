@@ -3,10 +3,11 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="description" content="LilithList — a privacy-first peer safety bulletin product prototype.">
+  <meta name="description" content="LilithList — a sisterhood safety bulletin. Minimum data, held with care, community-kept.">
   <meta name="color-scheme" content="light">
+  <meta name="theme-color" content="#521035">
   <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self'; object-src 'none'; base-uri 'none'; form-action 'self'">
-  <title>LilithList // peer safety board</title>
+  <title>LilithList ☽ sisterhood safety bulletin</title>
   <link rel="icon" href="icon.svg" type="image/svg+xml">
   <link rel="stylesheet" href="styles.css">
   <script src="app.js" defer></script>
@@ -25,13 +26,13 @@
 
   <header class="site-head shell">
     <div class="brand-block">
-      <p class="eyebrow">WORKER-TO-WORKER SAFETY BULLETIN // BUILD <span id="appVersion">0.5</span></p>
-      <h1>lilithlist</h1>
-      <p class="tagline">minimum data. observable conduct. community-held process.</p>
+      <p class="eyebrow">A SISTERHOOD SAFETY BULLETIN // BUILD <span id="appVersion">0.5</span></p>
+      <h1><span class="moon" aria-hidden="true">☽ </span>lilithlist</h1>
+      <p class="tagline">minimum data. held with care. community-kept.</p>
     </div>
     <div class="node-card" aria-label="Community node status">
       <div><span class="status-square" aria-hidden="true"></span><strong>COMMUNITY NODE <span id="nodeId">LL-LOCAL</span></strong></div>
-      <dl><dt>connection</dt><dd>local node</dd><dt>dataset</dt><dd>fictional</dd><dt>retention</dt><dd>90-day model</dd></dl>
+      <dl><dt>connection</dt><dd id="connType">local node</dd><dt>dataset</dt><dd>fictional</dd><dt>retention</dt><dd>90-day model</dd></dl>
     </div>
   </header>
 
@@ -201,6 +202,6 @@ NO PUBLIC API  ·  NO BULK EXPORT  ·  NO UNIVERSAL SCORE</pre><p>This build imp
 
   <div class="toast" id="toast" role="status" aria-live="polite" hidden><span id="toastText"></span><button type="button" aria-label="Dismiss notification">×</button></div>
 
-  <footer><div class="shell footer-inner"><p><strong>LILITHLIST / PRODUCT PROTOTYPE.</strong> Fictional data only. Node backend with human moderation, optional encryption at rest, and signed opt-in federation. No end-to-end (in-transit) encryption is implemented.</p><p>plain HTML / CSS / JS · Node + SQLite<br>zero dependencies · local community node</p></div></footer>
+  <footer><div class="shell footer-inner"><p><strong>LILITHLIST ☽ SISTERHOOD SAFETY BULLETIN.</strong> Fictional data only. Node backend with human moderation, optional encryption at rest, and signed opt-in federation. No end-to-end (in-transit) encryption on clearnet — use the onion address for network-level anonymity.</p><p>plain HTML / CSS / JS · Node + SQLite<br>zero dependencies · local community node</p></div></footer>
 </body>
 </html>

@@ -146,10 +146,15 @@ export function createApp({ dbPath = 'data/lilithlist.db', limits = {}, nodeKeyP
     const ext = '.' + rel.split('.').pop();
     const data = await readFile(full);
     const cacheable = rel !== 'index.html';
-    return send(res, 200, data, {
+    const headers = {
       'Content-Type': MIME[ext] || 'application/octet-stream',
       'Cache-Control': cacheable ? 'public, max-age=3600' : 'no-store'
-    });
+    };
+    // Advertise the onion-service mirror to Tor Browser users (opt-in via env).
+    // LILITH_ONION_URL is the onion origin, e.g. http://abcdef....onion
+    const onion = (process.env.LILITH_ONION_URL || '').replace(/\/+$/, '');
+    if (onion && rel === 'index.html') headers['Onion-Location'] = onion + '/';
+    return send(res, 200, data, headers);
   }
 
   async function api(req, res, url, method) {
