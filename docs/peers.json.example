@@ -1,0 +1,3 @@
+[
+  { "label": "sister-node", "url": "https://sister.example.org", "pubkey": "<their base64 SPKI DER node key>" }
+]

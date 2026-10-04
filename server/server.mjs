@@ -11,12 +11,24 @@ const DB_PATH = process.env.LILITH_DB || 'data/lilithlist.db';
 
 mkdirSync('data', { recursive: true });
 
+const IS_PROD = process.env.NODE_ENV === 'production';
+// Seeding is opt-in in production: set LILITH_SEED=1 to seed a fresh DB,
+// otherwise production starts empty. In dev it seeds when empty by default.
+const SEED_ENABLED = process.env.LILITH_SEED
+  ? process.env.LILITH_SEED === '1'
+  : !IS_PROD;
+
 const app = createApp({ dbPath: DB_PATH });
-const seeded = seedIfEmpty(app.store);
+const seeded = SEED_ENABLED ? seedIfEmpty(app.store) : 0;
 if (seeded) console.log(`[lilithlist] seeded ${seeded} fictional bulletins`);
 
-// Ensure a moderator exists. A freshly generated key is printed exactly once —
-// record it now; only its hash is stored and it cannot be shown again.
+// Ensure a moderator exists. In production a bootstrap key is REQUIRED via
+// MOD_BOOTSTRAP_KEY (never auto-print secrets to logs). In dev a key is
+// generated and printed once for convenience.
+if (IS_PROD && !process.env.MOD_BOOTSTRAP_KEY) {
+  console.error('[lilithlist] FATAL: MOD_BOOTSTRAP_KEY must be set in production.');
+  process.exit(1);
+}
 const boot = app.store.ensureBootstrapModerator(process.env.MOD_BOOTSTRAP_KEY);
 if (boot.created && boot.generated) {
   console.log('\n  ┌─ MODERATOR BOOTSTRAP KEY (shown once) ───────────────────');

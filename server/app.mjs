@@ -1,6 +1,7 @@
 'use strict';
 
 import { readFile } from 'node:fs/promises';
+import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join, normalize } from 'node:path';
 import { createHash, randomBytes } from 'node:crypto';
@@ -10,6 +11,10 @@ import { RateLimiter } from './ratelimit.mjs';
 import { loadOrCreateIdentity, loadPeers, buildFeed, pullFromPeer } from './federation.mjs';
 
 const ROOT = dirname(dirname(fileURLToPath(import.meta.url)));
+let APP_VERSION = '0.0.0';
+try {
+  APP_VERSION = JSON.parse(readFileSync(join(ROOT, 'package.json'), 'utf8')).version || APP_VERSION;
+} catch { /* keep fallback */ }
 const STATIC_FILES = {
   '/': 'index.html',
   '/index.html': 'index.html',
@@ -140,13 +145,20 @@ export function createApp({ dbPath = 'data/lilithlist.db', limits = {}, nodeKeyP
     if (!full.startsWith(ROOT)) return send(res, 403, 'forbidden');
     const ext = '.' + rel.split('.').pop();
     const data = await readFile(full);
-    return send(res, 200, data, { 'Content-Type': MIME[ext] || 'application/octet-stream' });
+    const cacheable = rel !== 'index.html';
+    return send(res, 200, data, {
+      'Content-Type': MIME[ext] || 'application/octet-stream',
+      'Cache-Control': cacheable ? 'public, max-age=3600' : 'no-store'
+    });
   }
 
   async function api(req, res, url, method) {
     const path = url.pathname;
 
     if (path === '/api/health' && method === 'GET') return send(res, 200, { ok: true });
+    if (path === '/api/meta' && method === 'GET') {
+      return send(res, 200, { version: APP_VERSION, node: identity.publicKey.slice(0, 8) });
+    }
     if (path === '/api/stats' && method === 'GET') return send(res, 200, store.stats());
 
     if (path === '/api/reports' && method === 'GET') {

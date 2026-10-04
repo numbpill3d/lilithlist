@@ -274,4 +274,4 @@ jurisdiction-specific legal analysis, a real standing moderation/appeals team, o
 security, and independent adversarial testing. The software now does its whole part of the
 loop; the human and legal parts remain yours.
 
-The original first-pass artifact is preserved as `index-v1.html`.
+The original first-pass artifact is preserved as `docs/legacy/index-v1.html`.

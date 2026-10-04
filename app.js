@@ -555,5 +555,12 @@
 
   const currentMonth = new Date().toISOString().slice(0, 7); refs.reportForm.elements.date.max = currentMonth;
   loadReceipts(); loadMod(); updateLocalStats(); renderBoard();
+  fetch('/api/meta').then(r => r.ok ? r.json() : null).then(meta => {
+    if (!meta) return;
+    const v = document.getElementById('appVersion');
+    const n = document.getElementById('nodeId');
+    if (v && meta.version) v.textContent = meta.version;
+    if (n && meta.node) n.textContent = 'LL-' + String(meta.node).toUpperCase();
+  }).catch(() => {});
   const initial = currentRoute(); showRoute(initial.route, initial.section, { replace: true });
 })();
