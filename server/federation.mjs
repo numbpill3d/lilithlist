@@ -77,26 +77,49 @@ export function buildFeed(store, identity) {
   return { node: identity.publicKey, bulletins, tombstones };
 }
 
+export const FEDERATION_LIMITS = {
+  timeoutMs: 10000,
+  maxBulletins: 500,
+  maxTombstones: 500,
+  maxRecordBytes: 16 * 1024
+};
+
 // ── Pull sync (peer → mirrors) ──────────────────────────────────────────────
 // Fetches a peer's feed, verifies every record against the pinned key, upserts
 // verified bulletins as read-only mirrors, and applies signed tombstones.
-export async function pullFromPeer(store, peer, { fetchImpl = fetch, now = Date.now() } = {}) {
+export async function pullFromPeer(store, peer, { fetchImpl = fetch, now = Date.now(), limits = FEDERATION_LIMITS } = {}) {
   const result = { peer: peer.label, added: 0, removed: 0, rejected: 0, error: null };
   let feed;
   try {
-    const res = await fetchImpl(`${peer.url}/api/federation/feed`, { headers: { accept: 'application/json' } });
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    feed = await res.json();
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), limits.timeoutMs);
+    try {
+      const res = await fetchImpl(`${peer.url}/api/federation/feed`, {
+        headers: { accept: 'application/json' },
+        signal: ctrl.signal
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      feed = await res.json();
+    } finally {
+      clearTimeout(timer);
+    }
   } catch (err) {
-    result.error = err.message;
+    result.error = err.name === 'AbortError' ? 'fetch timeout' : err.message;
     return result;
   }
   if (!feed || feed.node !== peer.pubkey || !Array.isArray(feed.bulletins)) {
     result.error = 'feed identity mismatch or malformed';
     return result;
   }
+  if (feed.bulletins.length > limits.maxBulletins || (feed.tombstones || []).length > limits.maxTombstones) {
+    result.error = 'feed exceeds size limits';
+    return result;
+  }
   for (const entry of feed.bulletins) {
     if (!entry || !entry.record || typeof entry.record.id !== 'string') { result.rejected++; continue; }
+    try {
+      if (Buffer.byteLength(JSON.stringify(entry.record), 'utf8') > limits.maxRecordBytes) { result.rejected++; continue; }
+    } catch { result.rejected++; continue; }
     if (!verifyRecord(entry.record, entry.sig, peer.pubkey)) { result.rejected++; continue; }
     if (Number.isFinite(Date.parse(entry.record.expiresAt)) && Date.parse(entry.record.expiresAt) <= now) continue;
     store.upsertMirror(peer.pubkey, entry.record);

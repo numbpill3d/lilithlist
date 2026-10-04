@@ -15,4 +15,7 @@ EXPOSE 4173
 RUN addgroup -S ll && adduser -S ll -G ll && mkdir -p /data && chown ll:ll /data
 USER ll
 
+HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
+  CMD wget -qO- http://127.0.0.1:4173/api/health | grep -q '"ok":true' || exit 1
+
 CMD ["node", "server/server.mjs"]
