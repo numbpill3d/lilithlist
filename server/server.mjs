@@ -2,6 +2,7 @@
 
 import { createServer } from 'node:http';
 import { mkdirSync } from 'node:fs';
+import { dirname, join } from 'node:path';
 import { createApp } from './app.mjs';
 import { seedIfEmpty } from './seed.mjs';
 
@@ -9,7 +10,14 @@ const PORT = Number.parseInt(process.env.PORT || '4173', 10);
 const HOST = process.env.HOST || '127.0.0.1';
 const DB_PATH = process.env.LILITH_DB || 'data/lilithlist.db';
 
-mkdirSync('data', { recursive: true });
+// Identity, peers, and (default) DB live next to the database file — not in a
+// hardcoded ./data dir — so read-only checkouts and container users work.
+// (E.g. on Fly.io the DB lives on the /data volume while /app is read-only.)
+const DATA_DIR = dirname(DB_PATH);
+try { mkdirSync(DATA_DIR, { recursive: true }); } catch { /* read-only or exists */ }
+
+const NODE_KEY_PATH = process.env.LILITH_NODE_KEY || join(DATA_DIR, 'node_identity.json');
+const PEERS_PATH = process.env.LILITH_PEERS || join(DATA_DIR, 'peers.json');
 
 const IS_PROD = process.env.NODE_ENV === 'production';
 // Seeding is opt-in in production: set LILITH_SEED=1 to seed a fresh DB,
@@ -18,7 +26,7 @@ const SEED_ENABLED = process.env.LILITH_SEED
   ? process.env.LILITH_SEED === '1'
   : !IS_PROD;
 
-const app = createApp({ dbPath: DB_PATH });
+const app = createApp({ dbPath: DB_PATH, nodeKeyPath: NODE_KEY_PATH, peersPath: PEERS_PATH });
 const seeded = SEED_ENABLED ? seedIfEmpty(app.store) : 0;
 if (seeded) console.log(`[lilithlist] seeded ${seeded} fictional bulletins`);
 

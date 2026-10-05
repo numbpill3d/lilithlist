@@ -26,7 +26,7 @@ export function loadOrCreateIdentity(path) {
   const { publicKey, privateKey } = generateKeyPairSync('ed25519');
   const pubB64 = publicKey.export({ type: 'spki', format: 'der' }).toString('base64');
   const privPem = privateKey.export({ type: 'pkcs8', format: 'pem' });
-  mkdirSync(dirname(path), { recursive: true });
+  try { mkdirSync(dirname(path), { recursive: true }); } catch { /* read-only or exists; write below will surface real errors */ }
   writeFileSync(path, JSON.stringify({ publicKey: pubB64, privateKey: privPem }), { mode: 0o600 });
   return makeIdentity(pubB64, publicKey, privPem);
 }
