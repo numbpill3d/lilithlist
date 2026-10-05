@@ -1,0 +1,42 @@
+#cloud-config
+# Paste into the Oracle Cloud console under "Advanced options" → "Paste cloud-init script".
+# It performs the full base install: Node 22, Caddy, SQLite, repo clone,
+# `lilith` user, generated secrets, enabled service. After boot you only:
+#   1. point your domain's A record at the VM
+#   2. SSH in, put your domain in /etc/caddy/Caddyfile, `systemctl reload caddy`
+#   3. verify https://your-domain/api/meta shows "demo":false
+# Secrets are generated on FIRST BOOT ONLY into /etc/lilithlist.env (root 0600).
+
+package_update: true
+packages:
+  - git
+  - sqlite3
+
+runcmd:
+  # Node.js 22 (arm64 and x86_64 both supported)
+  - curl -fsSL https://deb.nodesource.com/setup_22.x | bash -
+  - apt-get install -y nodejs
+  # Caddy (automatic HTTPS)
+  - apt-get install -y debian-keyring debian-archive-keyring apt-transport-https
+  - curl -1sLf 'https://dl.cloudsmith.io/public/caddy/stable/gpg.key' | gpg --dearmor -o /usr/share/keyrings/caddy-stable-archive-keyring.gpg
+  - curl -1sLf 'https://dl.cloudsmith.io/public/caddy/stable/debian.deb.txt' | tee /etc/apt/sources.list.d/caddy-stable.list
+  - apt-get update && apt-get install -y caddy
+  # App
+  - git clone https://github.com/numbpill3d/lilithlist.git /opt/lilithlist
+  - useradd --system --home /opt/lilithlist lilith || true
+  - mkdir -p /var/lib/lilithlist /var/backups/lilithlist
+  - chown lilith:lilith /var/lib/lilithlist
+  # Secrets — generated once, never overwritten on reboot
+  - test -f /etc/lilithlist.env || printf 'LILITH_SECRET_KEY=%s\nMOD_BOOTSTRAP_KEY=%s\n' "$(openssl rand -hex 32)" "$(openssl rand -base64 24)" > /etc/lilithlist.env
+  - chmod 600 /etc/lilithlist.env
+  # Service + backup
+  - cp /opt/lilithlist/deploy/lilithlist.service /etc/systemd/system/
+  - systemctl daemon-reload
+  - systemctl enable --now lilithlist
+  - cp /opt/lilithlist/deploy/backup-nightly.sh /etc/cron.daily/lilithlist-backup
+  - chmod +x /etc/cron.daily/lilithlist-backup
+  # Firewall: open HTTP/HTTPS (VCN security list still needs the same in console)
+  - iptables -I INPUT -p tcp --dport 80 -j ACCEPT || true
+  - iptables -I INPUT -p tcp --dport 443 -j ACCEPT || true
+  - apt-get install -y iptables-persistent
+  - netfilter-persistent save || true
