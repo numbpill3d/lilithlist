@@ -279,6 +279,31 @@ export class Store {
     this.db.prepare('DELETE FROM mod_sessions WHERE token_hash = ?').run(sha256(String(token)));
   }
 
+  // ── Moderator team management (moderator-authenticated) ────────────────────
+  // Keys are generated here and shown ONCE to the adding moderator; only the
+  // SHA-256 hash is stored. The last remaining moderator cannot be removed.
+  listModerators() {
+    return this.db.prepare('SELECT id, label, created_at AS createdAt FROM moderators ORDER BY created_at ASC').all();
+  }
+
+  addModerator(label) {
+    const clean = String(label || '').trim().slice(0, 40);
+    if (!clean) return { ok: false, code: 400 };
+    const key = randomBytes(18).toString('base64url');
+    const id = shortId('MOD');
+    this.db.prepare('INSERT INTO moderators (id, key_hash, label, created_at) VALUES (?, ?, ?, ?)')
+      .run(id, sha256(key), clean, new Date().toISOString());
+    return { ok: true, moderator: { id, label: clean }, key };
+  }
+
+  removeModerator(id) {
+    const count = this.db.prepare('SELECT COUNT(*) AS n FROM moderators').get().n;
+    if (count <= 1) return { ok: false, code: 409 };
+    const changes = this.db.prepare('DELETE FROM moderators WHERE id = ?').run(String(id)).changes;
+    if (!changes) return { ok: false, code: 404 };
+    return { ok: true };
+  }
+
   queue() {
     this.sweepExpired();
     const rows = this.db.prepare(

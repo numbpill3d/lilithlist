@@ -9,6 +9,7 @@ import { Store } from './db.mjs';
 import { validateReportInput, validateAction } from './domain.mjs';
 import { RateLimiter } from './ratelimit.mjs';
 import { loadOrCreateIdentity, loadPeers, buildFeed, pullFromPeer } from './federation.mjs';
+import { loadResources } from './resources.mjs';
 
 const ROOT = dirname(dirname(fileURLToPath(import.meta.url)));
 let APP_VERSION = '0.0.0';
@@ -162,7 +163,14 @@ export function createApp({ dbPath = 'data/lilithlist.db', limits = {}, nodeKeyP
 
     if (path === '/api/health' && method === 'GET') return send(res, 200, { ok: true });
     if (path === '/api/meta' && method === 'GET') {
-      return send(res, 200, { version: APP_VERSION, node: identity.publicKey.slice(0, 8) });
+      return send(res, 200, {
+        version: APP_VERSION,
+        node: identity.publicKey.slice(0, 8),
+        demo: process.env.NODE_ENV !== 'production'
+      });
+    }
+    if (path === '/api/resources' && method === 'GET') {
+      return send(res, 200, { resources: loadResources() });
     }
     if (path === '/api/stats' && method === 'GET') return send(res, 200, store.stats());
 
@@ -285,6 +293,24 @@ export function createApp({ dbPath = 'data/lilithlist.db', limits = {}, nodeKeyP
       if (path === '/api/mod/session' && method === 'GET') return send(res, 200, { label: mod.label });
       if (path === '/api/mod/logout' && method === 'POST') { store.logout(bearer(req)); return send(res, 200, { ok: true }); }
       if (path === '/api/mod/queue' && method === 'GET') return send(res, 200, { queue: store.queue(), stats: store.stats() });
+
+      if (path === '/api/mod/moderators' && method === 'GET') {
+        return send(res, 200, { moderators: store.listModerators() });
+      }
+      if (path === '/api/mod/moderators' && method === 'POST') {
+        const body = await readJson(req);
+        const result = store.addModerator(body.label);
+        if (!result.ok) return send(res, 400, { error: 'A team name is required (max 40 chars).' });
+        // The key is shown exactly once here; only its hash is stored.
+        return send(res, 201, result);
+      }
+      const removeMatch = path.match(/^\/api\/mod\/moderators\/([A-Za-z0-9-]+)$/);
+      if (removeMatch && method === 'DELETE') {
+        const result = store.removeModerator(removeMatch[1]);
+        if (!result.ok && result.code === 404) return send(res, 404, { error: 'Moderator not found.' });
+        if (!result.ok) return send(res, 409, { error: 'Cannot remove the last moderator.' });
+        return send(res, 200, { ok: true });
+      }
 
       const resolveMatch = path.match(/^\/api\/mod\/reports\/([A-Za-z0-9-]+)\/resolve$/);
       if (resolveMatch && method === 'POST') {

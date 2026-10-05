@@ -1,6 +1,6 @@
 {
   "name": "lilithlist",
-  "version": "0.6.0",
+  "version": "1.0.0",
   "private": true,
   "description": "A sisterhood safety bulletin node. Minimum data, held with care, community-kept. Zero runtime dependencies.",
   "type": "module",
@@ -8,7 +8,7 @@
   "scripts": {
     "start": "node server/server.mjs",
     "dev": "node --watch server/server.mjs",
-    "test": "node --test tests/api.test.mjs tests/crypto.test.mjs tests/federation.test.mjs tests/anonymity.test.mjs",
+    "test": "node --test tests/api.test.mjs tests/crypto.test.mjs tests/federation.test.mjs tests/anonymity.test.mjs tests/ops.test.mjs",
     "test:e2e": "node --test tests/e2e.test.cjs"
   },
   "license": "MIT"

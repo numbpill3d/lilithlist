@@ -15,7 +15,7 @@
 <body>
   <a class="skip" href="#content">skip to content</a>
 
-  <div class="demo-boundary" data-testid="demo-boundary">
+  <div class="demo-boundary" id="demoBoundary" data-testid="demo-boundary">
     <div class="shell demo-boundary__inner">
       <strong>DEMO / FICTIONAL DATA</strong>
       <span>Bulletins persist on a local community node with human moderation, optional encryption at rest, and signed opt-in federation. This demo still has no end-to-end (in-transit) encryption.</span>
@@ -32,7 +32,7 @@
     </div>
     <div class="node-card" aria-label="Community node status">
       <div><span class="status-square" aria-hidden="true"></span><strong>COMMUNITY NODE <span id="nodeId">LL-LOCAL</span></strong></div>
-      <dl><dt>connection</dt><dd id="connType">local node</dd><dt>dataset</dt><dd>fictional</dd><dt>retention</dt><dd>90-day model</dd></dl>
+      <dl><dt>connection</dt><dd id="connType">local node</dd><dt>dataset</dt><dd id="datasetType">fictional</dd><dt>retention</dt><dd>90-day model</dd></dl>
     </div>
   </header>
 
@@ -81,8 +81,8 @@
         </div>
 
         <aside class="sidebar" aria-label="Board guidance">
-          <section class="side-panel">
-            <h3>THIS DEMO BROWSER</h3>
+          <section class="side-panel" id="demoBrowserPanel">
+            <h3 id="demoBrowserTitle">THIS DEMO BROWSER</h3>
             <dl class="status-list"><dt>your receipts</dt><dd id="localReportCount">0</dd><dt>pending actions</dt><dd id="pendingActionCount">0</dd><dt>bulletins</dt><dd>on node</dd><dt>receipts</dt><dd>this browser</dd></dl>
             <button type="button" class="text-action" data-action="open-data">manage local receipts →</button>
           </section>
@@ -158,7 +158,7 @@ signed bulletin  ↔  pinned peer mirrors (pull + verify + tombstones)
 NO PUBLIC API  ·  NO BULK EXPORT  ·  NO UNIVERSAL SCORE</pre><p>This build implements a real single community node: a zero-dependency Node + SQLite backend enforces the privacy checks and 90-day retention server-side, mints a one-time revocation receipt per report, records lifecycle actions, offers <strong>optional AES-256-GCM encryption at rest</strong> for report narratives, provides an <strong>authenticated moderator role with a human review queue</strong> (high-risk bulletins, contests, corrections, and emergency-unpublish requests are resolved by a moderator, every resolution recorded), and supports <strong>signed, opt-in federation</strong>: a node signs its own bulletins with an Ed25519 key, and peers pinned in <code>data/peers.json</code> pull and verify them into read-only mirrors, with revocations and removals propagated as signed tombstones. It does <strong>not</strong> yet implement end-to-end encryption in transit, or reporter pseudonymous accounts (reporters stay account-less by design). A multi-node production system also needs protocol design, governance, jurisdiction-specific legal analysis, device security, and adversarial testing.</p></section>
           <section id="guide-retention" tabindex="-1"><h3>Retention</h3><p>The demo models a 90-day expiry for locally created reports. Expiry removes the local demo record when the browser next loads. A production policy must define what can renew a report, how emergency deletion propagates, and what minimal audit evidence remains.</p></section>
           <section id="guide-removal" tabindex="-1"><h3>Correction, contest, revocation, and emergency unpublish</h3><p>These are separate actions. A correction does not increase corroboration. A reporter needs a private recovery receipt to edit or revoke their report. A subject needs a privacy-preserving contest channel. Emergency unpublishing should propagate before an appeal is resolved.</p><table class="process-table"><thead><tr><th>action</th><th>effect</th><th>demo behavior</th></tr></thead><tbody><tr><td>correct</td><td>request factual revision</td><td>local pending flag</td></tr><tr><td>contest</td><td>challenge accuracy or process</td><td>local disputed flag</td></tr><tr><td>revoke</td><td>reporter withdraws report</td><td>deletes local report only</td></tr><tr><td>emergency unpublish</td><td>hide while safety review occurs</td><td>simulated pending flag</td></tr></tbody></table></section>
-          <section id="guide-crisis" tabindex="-1"><h3>Urgent support</h3><p>LilithList is not emergency dispatch and should not imply that police contact is safe, wanted, or available. Production nodes should maintain community-governed mutual-aid and crisis resources, show the last verification date, and never infer a worker’s location without explicit consent.</p></section>
+          <section id="guide-crisis" tabindex="-1"><h3>Urgent support</h3><p>LilithList is not emergency dispatch and should not imply that police contact is safe, wanted, or available. Your node operator maintains the verified support resources below — check the verification date and never infer a worker's location without explicit consent.</p><div id="crisisResources" aria-live="polite"><p>Loading verified support resources…</p></div></section>
         </article>
       </div>
     </section>
@@ -187,6 +187,16 @@ NO PUBLIC API  ·  NO BULK EXPORT  ·  NO UNIVERSAL SCORE</pre><p>This build imp
           <p class="fed-hint">Peers are configured in <code>data/peers.json</code> and pinned by public key. Mirrored bulletins are read-only and governed by their origin node.</p>
           <div id="fedResult" class="fed-result" aria-live="polite"></div>
         </section>
+        <section class="fed-panel" id="teamPanel">
+          <div class="fed-panel__head"><h3>moderation team</h3></div>
+          <p class="fed-hint">Each teammate signs in with their own key. New keys are shown <b>once</b> — copy them immediately. Only key hashes are stored on the node.</p>
+          <div id="teamList" aria-live="polite"></div>
+          <form id="teamAddForm" class="lookup-form" style="margin-top:8px">
+            <label><span>new teammate name</span><input id="teamName" autocomplete="off" placeholder="e.g. night-shift-2" maxlength="40"></label>
+            <button class="button button--primary" type="submit">create key</button>
+          </form>
+          <div id="teamResult" class="fed-result" aria-live="polite"></div>
+        </section>
         <div id="modQueue" class="mod-queue" aria-live="polite"></div>
       </div>
     </section>
@@ -202,6 +212,6 @@ NO PUBLIC API  ·  NO BULK EXPORT  ·  NO UNIVERSAL SCORE</pre><p>This build imp
 
   <div class="toast" id="toast" role="status" aria-live="polite" hidden><span id="toastText"></span><button type="button" aria-label="Dismiss notification">×</button></div>
 
-  <footer><div class="shell footer-inner"><p><strong>LILITHLIST ☽ SISTERHOOD SAFETY BULLETIN.</strong> Fictional data only. Node backend with human moderation, optional encryption at rest, and signed opt-in federation. No end-to-end (in-transit) encryption on clearnet — use the onion address for network-level anonymity.</p><p>plain HTML / CSS / JS · Node + SQLite<br>zero dependencies · local community node</p></div></footer>
+  <footer><div class="shell footer-inner"><p id="footerNote"><strong>LILITHLIST ☽ SISTERHOOD SAFETY BULLETIN.</strong> Fictional data only. Node backend with human moderation, optional encryption at rest, and signed opt-in federation. No end-to-end (in-transit) encryption on clearnet — use the onion address for network-level anonymity.</p><p>plain HTML / CSS / JS · Node + SQLite<br>zero dependencies · local community node</p></div></footer>
 </body>
 </html>

@@ -202,14 +202,14 @@
     }
 
     const verification = el('section', { className: 'action-section' }, [el('h3', { text: 'verification' }), el('p', { text: 'Corroboration means direct, independent recognition of the conduct pattern or partial marker. It does not renew expiry.' })]);
-    const count = el('p', { dataset: { testid: 'corroboration-count' }, text: `${report.corroborations || 0} corroborations on this fictional/demo record` });
+    const count = el('p', { dataset: { testid: 'corroboration-count' }, text: `${report.corroborations || 0} corroborations on this community record` });
     const corroborate = el('button', { className: 'button button--quiet', type: 'button', text: 'add corroboration' });
     corroborate.addEventListener('click', async () => {
       corroborate.disabled = true;
       try {
         const res = await api(`/api/reports/${encodeURIComponent(report.id)}/corroborate`, { method: 'POST' });
         report.corroborations = res.report.corroborations;
-        count.textContent = `${report.corroborations} corroborations on this fictional/demo record`;
+        count.textContent = `${report.corroborations} corroborations on this community record`;
         renderBoard(); showToast('Corroboration recorded on the node. It did not renew expiry.');
       } catch (err) {
         if (err.status === 409) { showToast('You already corroborated this bulletin from this browser.'); }
@@ -415,7 +415,7 @@
     try {
       const s = await api('/api/mod/session', { headers: modAuth() });
       state.modLabel = s.label; $('#modLabel').textContent = s.label;
-      setModAuthedView(true); renderModQueue(); renderFederation();
+      setModAuthedView(true); renderModQueue(); renderFederation(); renderModTeam();
     } catch (err) {
       if (err.status === 401) { state.modToken = null; saveMod(); }
       setModAuthedView(false);
@@ -492,6 +492,36 @@
     } catch (err) { out.textContent = err.message; }
   }
 
+  async function renderModTeam() {
+    const list = $('#teamList');
+    const out = $('#teamResult');
+    if (!list) return;
+    list.replaceChildren(el('p', { className: 'empty-state', text: 'Loading team…' }));
+    let data;
+    try { data = await api('/api/mod/moderators', { headers: modAuth() }); }
+    catch (err) { list.replaceChildren(el('p', { className: 'empty-state', text: err.message })); return; }
+    list.replaceChildren();
+    data.moderators.forEach(m => {
+      const row = el('div', { className: 'mod-request' }, [
+        el('b', { text: `${m.label} · ${m.id}` }),
+        el('span', { text: `since ${String(m.createdAt).slice(0, 10)}` })
+      ]);
+      if (data.moderators.length > 1) {
+        const rm = el('button', { className: 'text-action', text: 'remove' });
+        rm.addEventListener('click', async () => {
+          if (!window.confirm(`Remove ${m.label}? Their key stops working immediately.`)) return;
+          try {
+            await api(`/api/mod/moderators/${m.id}`, { method: 'DELETE', headers: modAuth() });
+            showToast(`${m.label} removed.`);
+            renderModTeam();
+          } catch (err) { out.textContent = err.message; }
+        });
+        row.append(rm);
+      }
+      list.append(row);
+    });
+  }
+
   let toastTimer;
   function showToast(message) { clearTimeout(toastTimer); refs.toastText.textContent = message; refs.toast.hidden = false; toastTimer = setTimeout(() => refs.toast.hidden = true, 7000); }
 
@@ -543,14 +573,26 @@
       const s = await api('/api/mod/login', { method: 'POST', body: { key } });
       state.modToken = s.token; state.modLabel = s.label; saveMod();
       $('#modKey').value = ''; $('#modLoginError').textContent = '';
-      $('#modLabel').textContent = s.label; setModAuthedView(true); renderModQueue(); renderFederation();
+      $('#modLabel').textContent = s.label; setModAuthedView(true); renderModQueue(); renderFederation(); renderModTeam();
     } catch (err) { $('#modLoginError').textContent = err.status === 401 ? 'Invalid moderator key.' : err.message; }
   });
   $('#modLogout').addEventListener('click', async () => {
     try { await api('/api/mod/logout', { method: 'POST', headers: modAuth() }); } catch {}
     state.modToken = null; state.modLabel = null; saveMod(); setModAuthedView(false); showToast('Signed out of moderation.');
   });
-  $('#modRefresh').addEventListener('click', renderModQueue);
+  $('#teamAddForm').addEventListener('submit', async event => {
+    event.preventDefault();
+    const out = $('#teamResult');
+    const name = $('#teamName').value.trim();
+    if (!name) { out.textContent = 'Give the teammate a name first.'; return; }
+    try {
+      const res = await api('/api/mod/moderators', { method: 'POST', headers: modAuth(), body: { label: name } });
+      $('#teamName').value = '';
+      out.textContent = `Key for ${res.moderator.label} (show once — copy now): ${res.key}`;
+      renderModTeam();
+    } catch (err) { out.textContent = err.message; }
+  });
+  $('#modRefresh').addEventListener('click', () => { renderModQueue(); renderModTeam(); });
   $('#fedSync').addEventListener('click', syncPeers);
 
   const currentMonth = new Date().toISOString().slice(0, 7); refs.reportForm.elements.date.max = currentMonth;
@@ -565,6 +607,30 @@
       const c = document.getElementById('connType');
       if (c) c.textContent = 'tor onion service';
     }
+    if (meta.demo === false) {
+      // Production node: drop the demo chrome, keep every function.
+      document.body.classList.add('prod');
+      const ds = document.getElementById('datasetType');
+      if (ds) ds.textContent = 'community';
+      const bt = document.getElementById('demoBrowserTitle');
+      if (bt) bt.textContent = 'THIS BROWSER';
+      const fn = document.getElementById('footerNote');
+      if (fn) fn.innerHTML = '<strong>LILITHLIST ☽ SISTERHOOD SAFETY BULLETIN.</strong> Community-moderated safety bulletins with human review, encryption at rest, and signed opt-in federation. No end-to-end (in-transit) encryption on clearnet — use the onion address for network-level anonymity.';
+    }
+  }).catch(() => {});
+  fetch('/api/resources').then(r => r.ok ? r.json() : null).then(data => {
+    const box = document.getElementById('crisisResources');
+    if (!box || !data || !Array.isArray(data.resources)) return;
+    box.replaceChildren();
+    const list = document.createElement('ul');
+    data.resources.forEach(r => {
+      const li = document.createElement('li');
+      const a = document.createElement('a');
+      a.href = r.url; a.textContent = r.name; a.rel = 'noreferrer';
+      li.append(a, ` — ${r.contact} (verified ${r.verified})`);
+      list.append(li);
+    });
+    box.append(list);
   }).catch(() => {});
   const initial = currentRoute(); showRoute(initial.route, initial.section, { replace: true });
 })();
