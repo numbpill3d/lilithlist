@@ -29,6 +29,10 @@ if (IS_PROD && !process.env.MOD_BOOTSTRAP_KEY) {
   console.error('[lilithlist] FATAL: MOD_BOOTSTRAP_KEY must be set in production.');
   process.exit(1);
 }
+if (IS_PROD && !process.env.LILITH_SECRET_KEY) {
+  console.error('[lilithlist] FATAL: LILITH_SECRET_KEY must be set in production (encryption at rest is mandatory for real safety data).');
+  process.exit(1);
+}
 const boot = app.store.ensureBootstrapModerator(process.env.MOD_BOOTSTRAP_KEY);
 if (boot.created && boot.generated) {
   console.log('\n  ┌─ MODERATOR BOOTSTRAP KEY (shown once) ───────────────────');

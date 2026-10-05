@@ -1,0 +1,4 @@
+[
+  { "name": "Local crisis line", "contact": "Call 555-0100 (24h)", "url": "https://example.org/support", "verified": "2026-10" },
+  { "name": "Community mutual-aid fund", "contact": "mutual-aid@example.org", "url": "https://example.org/aid", "verified": "2026-10" }
+]
