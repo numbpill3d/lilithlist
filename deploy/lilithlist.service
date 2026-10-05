@@ -1,0 +1,19 @@
+[Unit]
+Description=LilithList community node
+After=network.target
+
+[Service]
+Type=simple
+User=lilith
+WorkingDirectory=/opt/lilithlist
+# Secrets live in /etc/lilithlist.env (root-only, 0600) — never in this unit.
+EnvironmentFile=/etc/lilithlist.env
+Environment=HOST=127.0.0.1 PORT=4173 TRUST_PROXY=1 LILITH_DB=/var/lib/lilithlist/lilithlist.db NODE_ENV=production
+ExecStart=/usr/bin/node server/server.mjs
+Restart=on-failure
+NoNewPrivileges=true
+ProtectSystem=strict
+ReadWritePaths=/var/lib/lilithlist
+
+[Install]
+WantedBy=multi-user.target

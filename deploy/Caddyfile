@@ -1,0 +1,5 @@
+# LilithList — replace safety.example.org with your domain.
+# DNS: point an A record at your VPS first, then `systemctl reload caddy`.
+safety.example.org {
+	reverse_proxy 127.0.0.1:4173
+}
