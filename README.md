@@ -1,6 +1,9 @@
 # LilithList — self-hosted worker-to-worker safety bulletin
 
 A privacy-first peer safety bulletin that now runs as a real **single community node**:
+
+![LilithList live bulletin board](docs/screenshots/lilithlist-current.png)
+
 a dependency-free front end backed by a **zero-dependency Node + SQLite** server with
 optional encryption at rest, an authenticated human-moderation queue, and signed
 opt-in federation between trusted nodes. Bulletins persist on the node instead of only in
